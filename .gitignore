@@ -30,3 +30,6 @@ deno.lock
 
 # Supabase Edge Functions secrets
 supabase/functions/.env
+
+# Local environment variables
+.env
