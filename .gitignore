@@ -27,3 +27,6 @@ dist-ssr
 
 # Deno lockfile (generated locally, not committed)
 deno.lock
+
+# Supabase Edge Functions secrets
+supabase/functions/.env
