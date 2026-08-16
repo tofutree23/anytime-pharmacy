@@ -33,12 +33,9 @@ function getKstDateParts(date: Date): { dayOfWeek: number; hours: number; minute
   const hours = Number(partMap.hour);
   const minutes = Number(partMap.minute);
 
-  // KST 기준 Date 객체 생성 (UTC 기준)
-  const kstDate = new Date(Date.UTC(year, month, day, hours, minutes, 0));
-
-  // 요일 계산 (UTC Date로 요일을 계산하면 틀릴 수 있으니, 수동 계산)
-  // 간단한 방법: JS epoch로부터의 날 수로 요일 계산
-  // Zeller's congruence 또는 Tomohiko Sakamoto's algorithm 사용
+  // 요일 계산 (Tomohiko Sakamoto's algorithm)
+  // Date 객체 사용 안 함: UTC Date로 요일을 계산하면 틀릴 수 있음
+  // 대신 년/월/일 숫자로 직접 계산
   const q = day;
   const m = month < 2 ? month + 13 : month + 1;
   const y = month < 2 ? year - 1 : year;
