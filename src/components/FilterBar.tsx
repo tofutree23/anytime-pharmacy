@@ -1,4 +1,4 @@
-import { Chip, ChipItem } from '@toss/tds-mobile';
+import { Button } from '@toss/tds-mobile';
 
 export type FilterKey = 'openNow' | 'night' | 'holiday';
 
@@ -17,12 +17,23 @@ type FilterBarProps = {
 
 export function FilterBar({ active, onToggle }: FilterBarProps) {
   return (
-    <Chip aria-label="약국 필터" margin="medium">
-      {FILTER_KEYS.map((key) => (
-        <ChipItem key={key} selected={active.includes(key)} onClick={() => onToggle(key)}>
-          {FILTER_LABELS[key]}
-        </ChipItem>
-      ))}
-    </Chip>
+    <div role="group" aria-label="약국 필터" style={{ display: 'flex', gap: 8, padding: '0 16px' }}>
+      {FILTER_KEYS.map((key) => {
+        const selected = active.includes(key);
+        return (
+          <Button
+            key={key}
+            type="button"
+            size="small"
+            display="inline"
+            variant={selected ? 'fill' : 'weak'}
+            aria-pressed={selected}
+            onClick={() => onToggle(key)}
+          >
+            {FILTER_LABELS[key]}
+          </Button>
+        );
+      })}
+    </div>
   );
 }
