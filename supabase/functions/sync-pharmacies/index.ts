@@ -41,13 +41,31 @@ async function fetchAllPharmacies(serviceKey: string): Promise<RawPharmacyItem[]
   return items;
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("DATA_GOV_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!serviceKey || !supabaseUrl || !serviceRoleKey) {
     return new Response("환경변수 누락", { status: 500 });
+  }
+
+  // TEMP DIAGNOSTIC (to be removed before final commit): fetch only page 1 and report shape.
+  if (new URL(req.url).searchParams.get("diag") === "1") {
+    const testSize = new URL(req.url).searchParams.get("size") ?? "1000";
+    const t0 = Date.now();
+    const url = `${API_BASE}?serviceKey=${normalizeServiceKey(serviceKey)}&pageNo=1&numOfRows=${testSize}&_type=json`;
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; anytime-pharmacy-sync/1.0)" } });
+    const json = await res.json();
+    const itemsRaw = json?.response?.body?.items?.item;
+    const itemsLen = Array.isArray(itemsRaw) ? itemsRaw.length : (itemsRaw ? 1 : 0);
+    return new Response(JSON.stringify({
+      status: res.status,
+      requestedSize: testSize,
+      totalCount: json?.response?.body?.totalCount,
+      itemsLen,
+      ms: Date.now() - t0,
+    }), { headers: { "Content-Type": "application/json" } });
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);

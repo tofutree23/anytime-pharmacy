@@ -139,3 +139,79 @@ describe('KST timezone handling', () => {
     expect(isOpenNow(dutyTime, now)).toBe(false); // 토요일이므로 휴무
   });
 });
+
+describe('every-day-crosses-midnight regression', () => {
+  it('매일 22:00-02:00인 약국: 화요일 01:00은 영업 중이다 (월요일 밤 계속)', () => {
+    // 가장 일반적인 24시간 편의점/심야약국 패턴
+    // 모든 요일이 동일한 자정 넘김 영업시간
+    const everydayOvernightDutyTime: DutyTime = {
+      mon: { open: '2200', close: '0200' },
+      tue: { open: '2200', close: '0200' },
+      wed: { open: '2200', close: '0200' },
+      thu: { open: '2200', close: '0200' },
+      fri: { open: '2200', close: '0200' },
+      sat: { open: '2200', close: '0200' },
+      sun: { open: '2200', close: '0200' },
+      holiday: { open: '2200', close: '0200' },
+    };
+
+    // 2026-08-18은 화요일 01:00
+    // 월요일 22:00 ~ 화요일 02:00 shift가 계속 진행 중
+    const now = new Date('2026-08-18T01:00:00+09:00');
+    expect(isOpenNow(everydayOvernightDutyTime, now)).toBe(true);
+  });
+
+  it('매일 22:00-02:00인 약국: 화요일 23:00도 영업 중이다 (화요일 자신의 shift)', () => {
+    // 화요일 23:00은 화요일 자신의 22:00-02:00 shift 범위 내
+    const everydayOvernightDutyTime: DutyTime = {
+      mon: { open: '2200', close: '0200' },
+      tue: { open: '2200', close: '0200' },
+      wed: { open: '2200', close: '0200' },
+      thu: { open: '2200', close: '0200' },
+      fri: { open: '2200', close: '0200' },
+      sat: { open: '2200', close: '0200' },
+      sun: { open: '2200', close: '0200' },
+      holiday: { open: '2200', close: '0200' },
+    };
+
+    // 2026-08-18은 화요일 23:00
+    const now = new Date('2026-08-18T23:00:00+09:00');
+    expect(isOpenNow(everydayOvernightDutyTime, now)).toBe(true);
+  });
+
+  it('매일 22:00-02:00인 약국: 화요일 03:00은 영업 종료 (위요일 shift 끝남)', () => {
+    // 화요일 03:00은 이미 화요일 02:00 close time 이후
+    const everydayOvernightDutyTime: DutyTime = {
+      mon: { open: '2200', close: '0200' },
+      tue: { open: '2200', close: '0200' },
+      wed: { open: '2200', close: '0200' },
+      thu: { open: '2200', close: '0200' },
+      fri: { open: '2200', close: '0200' },
+      sat: { open: '2200', close: '0200' },
+      sun: { open: '2200', close: '0200' },
+      holiday: { open: '2200', close: '0200' },
+    };
+
+    // 2026-08-18은 화요일 03:00
+    const now = new Date('2026-08-18T03:00:00+09:00');
+    expect(isOpenNow(everydayOvernightDutyTime, now)).toBe(false);
+  });
+
+  it('매일 22:00-02:00인 약국: 화요일 10:00은 영업 종료 (다음 shift 전)', () => {
+    // 화요일 10:00은 화요일 22:00까지 폐업
+    const everydayOvernightDutyTime: DutyTime = {
+      mon: { open: '2200', close: '0200' },
+      tue: { open: '2200', close: '0200' },
+      wed: { open: '2200', close: '0200' },
+      thu: { open: '2200', close: '0200' },
+      fri: { open: '2200', close: '0200' },
+      sat: { open: '2200', close: '0200' },
+      sun: { open: '2200', close: '0200' },
+      holiday: { open: '2200', close: '0200' },
+    };
+
+    // 2026-08-18은 화요일 10:00
+    const now = new Date('2026-08-18T10:00:00+09:00');
+    expect(isOpenNow(everydayOvernightDutyTime, now)).toBe(false);
+  });
+});
