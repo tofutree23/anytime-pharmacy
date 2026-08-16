@@ -6,7 +6,7 @@
 
 **Architecture:** 앱인토스 미니앱(React)이 Supabase Postgres의 `pharmacies` 캐시 테이블을 publishable key로 직접 조회한다. Supabase Edge Function이 1시간 주기 cron으로 국립중앙의료원 "전국 약국 정보 조회 서비스"(data.go.kr) 를 호출해 캐시를 갱신하며, 공공API 서비스키(secret)는 Edge Function 안에서만 사용한다.
 
-**Tech Stack:** React 19, TypeScript, Vite, `@apps-in-toss/web-framework`, `@supabase/supabase-js`, Supabase (Postgres + Edge Functions, Deno), Vitest
+**Tech Stack:** React 19, TypeScript, Vite, `@apps-in-toss/web-framework`, `@toss/tds-mobile` + `@toss/tds-mobile-ait`(TDS, 토스 디자인 시스템), `@supabase/supabase-js`, Supabase (Postgres + Edge Functions, Deno), Vitest
 
 **Spec:** `docs/superpowers/specs/2026-08-16-anytime-pharmacy-design.md`
 
@@ -18,6 +18,8 @@
 - 공공API 서비스키(secret)는 Edge Function 밖으로 절대 노출 금지 — 프론트엔드 코드/환경변수에 넣지 않는다
 - 공공API 호출 실패 시 기존 캐시 데이터를 유지하고 실패만 로그로 남긴다 (캐시를 비우거나 에러로 서비스 중단하지 않는다)
 - Supabase는 Free 플랜 한도 내에서 운영한다 (유료 리소스 추가 금지)
+- 화면 UI는 직접 만든 CSS가 아니라 **TDS(`@toss/tds-mobile`) 컴포넌트를 우선 사용**한다 (`Navigation`, `Top`, `List`/`ListRow`, `Button`, `Badge`, `Paragraph` 등). TDS에 없는 요소만 최소한으로 직접 스타일링한다
+- 다크모드는 지원하지 않는다 (라이트 모드 전용, 앱인토스 디자인 가이드 기준). 레이아웃은 375px 폭 기준으로 확인한다
 
 ---
 
@@ -922,9 +924,10 @@ git commit -m "feat: GPS 위치 권한 및 지역 선택 폴백 훅 추가"
 
 ---
 
-## Task 8: 지역 선택 컴포넌트 (17개 시/도)
+## Task 8: TDS 설치 + 지역 선택 화면
 
 **Files:**
+- Modify: `package.json` (`@toss/tds-mobile`, `@toss/tds-mobile-ait`, `@emotion/react` 추가)
 - Create: `src/domain/regions.ts`
 - Create: `src/components/RegionPicker.tsx`
 
@@ -932,7 +935,24 @@ git commit -m "feat: GPS 위치 권한 및 지역 선택 폴백 훅 추가"
 - Consumes: 없음 (독립 컴포넌트)
 - Produces: `REGIONS: string[]` (`src/domain/regions.ts`), `function RegionPicker(props: { onSelect: (regionPrefix: string) => void }): JSX.Element`
 
-- [ ] **Step 1: 지역 목록 정의**
+- [ ] **Step 1: TDS 패키지 설치**
+
+```bash
+npm install @toss/tds-mobile @toss/tds-mobile-ait @emotion/react@^11
+```
+
+- [ ] **Step 2: TDS 컴포넌트 API 확인**
+
+이 태스크부터는 `List`, `ListRow` 외에 `Top`, `Paragraph` 등 다른 TDS 컴포넌트도 처음 쓴다. 구현 전에 `apps-in-toss` MCP 도구로 정확한 props를 확인한다:
+
+```
+mcp__apps-in-toss__searchDocumentation("Top 컴포넌트 사용법")
+mcp__apps-in-toss__searchDocumentation("Paragraph 컴포넌트 사용법")
+```
+
+문서에 나온 정확한 props로 아래 Step들의 예시 코드를 조정한다 (아래 코드는 `List`/`ListRow`/`Button`처럼 확인된 API를 기준으로 작성했고, `Top`/`Paragraph`는 문서 확인 후 맞는 형태로 채운다).
+
+- [ ] **Step 3: 지역 목록 정의**
 
 `src/domain/regions.ts`:
 
@@ -945,11 +965,12 @@ export const REGIONS = [
 ] as const;
 ```
 
-- [ ] **Step 2: 컴포넌트 작성**
+- [ ] **Step 4: 컴포넌트 작성 (TDS List/ListRow 기반)**
 
 `src/components/RegionPicker.tsx`:
 
 ```tsx
+import { List, ListRow, Top } from '@toss/tds-mobile';
 import { REGIONS } from '../domain/regions';
 
 type RegionPickerProps = {
@@ -958,23 +979,23 @@ type RegionPickerProps = {
 
 export function RegionPicker({ onSelect }: RegionPickerProps) {
   return (
-    <div className="region-picker">
-      <p>위치 정보를 사용할 수 없어요. 지역을 선택해 주세요.</p>
-      <ul className="region-picker__list">
+    <div>
+      <Top title="지역을 선택해 주세요" description="위치 정보를 사용할 수 없어 지역으로 약국을 찾아드려요." />
+      <List>
         {REGIONS.map((region) => (
-          <li key={region}>
-            <button type="button" onClick={() => onSelect(region)}>
-              {region}
-            </button>
-          </li>
+          <ListRow
+            key={region}
+            contents={<ListRow.Texts type="1RowTypeA" top={region} />}
+            onClick={() => onSelect(region)}
+          />
         ))}
-      </ul>
+      </List>
     </div>
   );
 }
 ```
 
-- [ ] **Step 3: 타입 체크**
+- [ ] **Step 5: 타입 체크**
 
 ```bash
 npx tsc -b --noEmit
@@ -982,11 +1003,11 @@ npx tsc -b --noEmit
 
 Expected: 에러 없음
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/domain/regions.ts src/components/RegionPicker.tsx
-git commit -m "feat: 시/도 지역 선택 컴포넌트 추가"
+git add package.json package-lock.json src/domain/regions.ts src/components/RegionPicker.tsx
+git commit -m "feat: TDS 설치 및 시/도 지역 선택 화면 추가"
 ```
 
 ---
@@ -1000,11 +1021,21 @@ git commit -m "feat: 시/도 지역 선택 컴포넌트 추가"
 - Consumes: `isOpenNow`, `isNightHours`, `isHolidayOpen` from Task 5 (사용은 Task 10의 목록 화면에서)
 - Produces: `type FilterKey = 'openNow' | 'night' | 'holiday'`, `function FilterBar(props: { active: FilterKey[]; onToggle: (key: FilterKey) => void }): JSX.Element`
 
-- [ ] **Step 1: 컴포넌트 작성**
+- [ ] **Step 1: Badge 컴포넌트 API 확인**
+
+```
+mcp__apps-in-toss__searchDocumentation("Badge 컴포넌트 토글 선택 사용법")
+```
+
+`Badge`가 토글형 선택 표시에 적합한지 확인하고, 맞지 않으면 `Button`(`variant="weak"`/`variant="fill"` 등 선택 상태를 표현하는 variant)으로 대체한다.
+
+- [ ] **Step 2: 컴포넌트 작성**
 
 `src/components/FilterBar.tsx`:
 
 ```tsx
+import { Badge } from '@toss/tds-mobile';
+
 export type FilterKey = 'openNow' | 'night' | 'holiday';
 
 const FILTER_LABELS: Record<FilterKey, string> = {
@@ -1020,32 +1051,32 @@ type FilterBarProps = {
 
 export function FilterBar({ active, onToggle }: FilterBarProps) {
   return (
-    <div className="filter-bar" role="group" aria-label="약국 필터">
+    <div role="group" aria-label="약국 필터" style={{ display: 'flex', gap: 8, padding: '0 16px' }}>
       {(Object.keys(FILTER_LABELS) as FilterKey[]).map((key) => (
-        <button
+        <Badge
           key={key}
           type="button"
           aria-pressed={active.includes(key)}
-          className={active.includes(key) ? 'filter-bar__chip filter-bar__chip--active' : 'filter-bar__chip'}
+          variant={active.includes(key) ? 'blue' : 'gray'}
           onClick={() => onToggle(key)}
         >
           {FILTER_LABELS[key]}
-        </button>
+        </Badge>
       ))}
     </div>
   );
 }
 ```
 
-- [ ] **Step 2: 타입 체크**
+- [ ] **Step 3: 타입 체크**
 
 ```bash
 npx tsc -b --noEmit
 ```
 
-Expected: 에러 없음
+Expected: 에러 없음. `Badge`의 실제 props 이름이 문서와 다르면(Step 1에서 확인한 대로) 그에 맞춰 수정한다.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/components/FilterBar.tsx
@@ -1066,25 +1097,30 @@ git commit -m "feat: 영업중/심야/공휴일 필터 바 추가"
 - Consumes: `useLocation` (Task 7), `usePharmacies` (Task 6), `RegionPicker` (Task 8), `FilterBar`/`FilterKey` (Task 9), `isOpenNow`/`isNightHours`/`isHolidayOpen` (Task 5), `Pharmacy` type (Task 5)
 - Produces: `function HomePage(): JSX.Element` — 다음 태스크(상세 화면)에서 카드 클릭 시 이동할 라우팅 지점
 
-- [ ] **Step 1: 상시 고지 컴포넌트**
+- [ ] **Step 1: 상시 고지 컴포넌트 (TDS Paragraph)**
 
 `src/components/ComplianceNotice.tsx`:
 
 ```tsx
+import { Paragraph } from '@toss/tds-mobile';
+
 export function ComplianceNotice() {
   return (
-    <p className="compliance-notice">
+    <Paragraph typography="st10" color="grey700" style={{ padding: '8px 16px' }}>
       본 서비스는 예약·추천 기능이 없으며, 공공데이터를 동일한 기준으로 제공해요.
-    </p>
+    </Paragraph>
   );
 }
 ```
 
-- [ ] **Step 2: 약국 카드 컴포넌트**
+Step 1에서 확인한 실제 `Paragraph` props(예: `typography`, `color` 이름)로 맞춘다.
+
+- [ ] **Step 2: 약국 카드 컴포넌트 (TDS ListRow)**
 
 `src/components/PharmacyCard.tsx`:
 
 ```tsx
+import { ListRow, Badge } from '@toss/tds-mobile';
 import type { Pharmacy } from '../domain/types';
 import { isOpenNow } from '../domain/businessHours';
 
@@ -1097,25 +1133,30 @@ export function PharmacyCard({ pharmacy, onClick }: PharmacyCardProps) {
   const open = isOpenNow(pharmacy.dutyTime, new Date());
 
   return (
-    <button type="button" className="pharmacy-card" onClick={() => onClick(pharmacy)}>
-      <div className="pharmacy-card__header">
-        <span className="pharmacy-card__name">{pharmacy.name}</span>
-        <span className={open ? 'pharmacy-card__status pharmacy-card__status--open' : 'pharmacy-card__status'}>
-          {open ? '영업중' : '영업종료'}
-        </span>
-      </div>
-      <p className="pharmacy-card__address">{pharmacy.address}</p>
-    </button>
+    <ListRow
+      contents={
+        <ListRow.Texts
+          type="2RowTypeA"
+          top={pharmacy.name}
+          bottom={pharmacy.address}
+        />
+      }
+      right={
+        <Badge variant={open ? 'blue' : 'gray'}>{open ? '영업중' : '영업종료'}</Badge>
+      }
+      onClick={() => onClick(pharmacy)}
+    />
   );
 }
 ```
 
-- [ ] **Step 3: 홈 화면 통합**
+- [ ] **Step 3: 홈 화면 통합 (TDS List)**
 
 `src/pages/HomePage.tsx`:
 
 ```tsx
 import { useMemo, useState } from 'react';
+import { List, Top, Paragraph } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
@@ -1160,7 +1201,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   }, [pharmacies, activeFilters]);
 
   if (locationState.status === 'loading') {
-    return <p>위치 정보를 확인하는 중이에요...</p>;
+    return <Paragraph typography="st10">위치 정보를 확인하는 중이에요...</Paragraph>;
   }
 
   if (locationState.status === 'fallback' && !regionPrefix) {
@@ -1168,26 +1209,25 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   }
 
   return (
-    <div className="home-page">
+    <div>
+      <Top title="언제나 약국" description="지금 문 연 약국을 찾아보세요." />
       <ComplianceNotice />
       <FilterBar active={activeFilters} onToggle={toggleFilter} />
-      {loading && <p>약국 정보를 불러오는 중이에요...</p>}
+      {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
       {error && (
         <div>
-          <p>정보를 불러오지 못했어요.</p>
+          <Paragraph typography="st10">정보를 불러오지 못했어요.</Paragraph>
           <button type="button" onClick={refetch}>다시 시도</button>
         </div>
       )}
       {!loading && !error && filteredPharmacies.length === 0 && (
-        <p>주변에 등록된 약국이 없어요.</p>
+        <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
       )}
-      <ul className="home-page__list">
+      <List>
         {filteredPharmacies.map((pharmacy) => (
-          <li key={pharmacy.id}>
-            <PharmacyCard pharmacy={pharmacy} onClick={onSelectPharmacy} />
-          </li>
+          <PharmacyCard key={pharmacy.id} pharmacy={pharmacy} onClick={onSelectPharmacy} />
         ))}
-      </ul>
+      </List>
     </div>
   );
 }
@@ -1229,7 +1269,7 @@ npm run dev
 
 ```bash
 git add src/components/PharmacyCard.tsx src/components/ComplianceNotice.tsx src/pages/HomePage.tsx src/App.tsx
-git commit -m "feat: 약국 목록 홈 화면 구현"
+git commit -m "feat: TDS 기반 약국 목록 홈 화면 구현"
 ```
 
 ---
@@ -1244,11 +1284,20 @@ git commit -m "feat: 약국 목록 홈 화면 구현"
 - Consumes: `Pharmacy`, `DutyTime` types (Task 5)
 - Produces: `function PharmacyDetailPage(props: { pharmacy: Pharmacy; onBack: () => void }): JSX.Element`
 
-- [ ] **Step 1: 상세 화면 구현**
+- [ ] **Step 1: Navigation 컴포넌트 API 확인**
+
+```
+mcp__apps-in-toss__searchDocumentation("Navigation 컴포넌트 뒤로가기 title 사용법")
+```
+
+문서에서 확인한 실제 props(뒤로가기 핸들러, title 등)로 아래 예시의 `Navigation` 사용부를 맞춘다.
+
+- [ ] **Step 2: 상세 화면 구현 (TDS Navigation/List/ListRow)**
 
 `src/pages/PharmacyDetailPage.tsx`:
 
 ```tsx
+import { Navigation, List, ListRow, Paragraph } from '@toss/tds-mobile';
 import type { Pharmacy, DutyTime } from '../domain/types';
 
 const DAY_LABELS: Array<[keyof DutyTime, string]> = [
@@ -1267,35 +1316,43 @@ type PharmacyDetailPageProps = {
 
 export function PharmacyDetailPage({ pharmacy, onBack }: PharmacyDetailPageProps) {
   return (
-    <div className="pharmacy-detail">
-      <button type="button" onClick={onBack}>목록으로</button>
-      <h1>{pharmacy.name}</h1>
-      <p>{pharmacy.address}</p>
-      {pharmacy.phone && <a href={`tel:${pharmacy.phone}`}>{pharmacy.phone}</a>}
+    <div>
+      <Navigation title={pharmacy.name} onClickBack={onBack} />
+      <Paragraph typography="st10">{pharmacy.address}</Paragraph>
+      {pharmacy.phone && (
+        <a href={`tel:${pharmacy.phone}`}>
+          <Paragraph typography="st10" color="blue500">{pharmacy.phone}</Paragraph>
+        </a>
+      )}
 
-      <table className="pharmacy-detail__hours">
-        <tbody>
-          {DAY_LABELS.map(([key, label]) => {
-            const hours = pharmacy.dutyTime[key];
-            return (
-              <tr key={key}>
-                <th>{label}</th>
-                <td>{hours ? `${formatHHmm(hours.open)} ~ ${formatHHmm(hours.close)}` : '휴무'}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <List>
+        {DAY_LABELS.map(([key, label]) => {
+          const hours = pharmacy.dutyTime[key];
+          return (
+            <ListRow
+              key={key}
+              contents={<ListRow.Texts type="1RowTypeA" top={label} />}
+              right={
+                <Paragraph typography="st10">
+                  {hours ? `${formatHHmm(hours.open)} ~ ${formatHHmm(hours.close)}` : '휴무'}
+                </Paragraph>
+              }
+            />
+          );
+        })}
+      </List>
 
-      <p className="pharmacy-detail__source">
+      <Paragraph typography="st11" color="grey500" style={{ padding: '8px 16px' }}>
         {pharmacy.source} · {new Date(pharmacy.updatedAt).toLocaleString('ko-KR')} 기준
-      </p>
+      </Paragraph>
     </div>
   );
 }
 ```
 
-- [ ] **Step 2: App.tsx에서 상세 화면 연결**
+Step 1에서 확인한 `Navigation`의 실제 props 이름(예: `onClickBack`이 아닐 수 있음)으로 맞춘다.
+
+- [ ] **Step 3: App.tsx에서 상세 화면 연결**
 
 `src/App.tsx`의 임시 버튼을 `PharmacyDetailPage`로 교체:
 
@@ -1324,7 +1381,7 @@ function App() {
 export default App;
 ```
 
-- [ ] **Step 3: 개발 서버로 확인**
+- [ ] **Step 4: 개발 서버로 확인**
 
 ```bash
 npm run dev
@@ -1332,11 +1389,11 @@ npm run dev
 
 목록에서 카드를 클릭하면 상세 화면으로 이동하고, 데이터 출처/갱신시각이 표시되는지 확인한다.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/pages/PharmacyDetailPage.tsx src/App.tsx
-git commit -m "feat: 약국 상세 화면 구현"
+git commit -m "feat: TDS 기반 약국 상세 화면 구현"
 ```
 
 ---
@@ -1380,3 +1437,4 @@ git commit -m "chore: 템플릿 기본 예제(in-app-ads) 코드 제거"
 - **스펙 커버리지**: 데이터 모델(Task 1), 캐싱/1시간 갱신/장애 시 캐시 유지(Task 3, 4), 화면 흐름 5개 전부(Task 8~11), 권한 설정(Task 7), 에러 처리 4가지 전부(Task 10 loading/error/empty, Task 7 fallback) 모두 태스크로 커버됨
 - **비용/운영(Free 플랜)**: 별도 인프라 추가 없이 Supabase 단일 프로젝트로 구성해 Global Constraints를 만족
 - **타입 일관성**: `DutyTime`/`Pharmacy`가 Task 5에서 정의되고 이후 모든 태스크(6, 7, 9, 10, 11)에서 동일하게 재사용됨. Edge Function 쪽(`NormalizedPharmacy`, Task 2~3)과 프론트 쪽(`Pharmacy`, Task 5) 타입은 이름은 다르지만 필드 구조가 1:1 대응하도록 맞춤
+- **디자인**: Task 8부터 TDS(`@toss/tds-mobile`) 컴포넌트를 도입해 직접 만든 CSS 대신 토스 디자인 시스템을 사용하도록 전 화면(Task 8~11)을 재작성함. `Navigation`/`Top`/`Badge`/`Paragraph`는 정확한 props를 문서로 확인 못했으므로, 각 태스크 실행 시 `apps-in-toss` MCP 도구로 먼저 확인하는 단계를 넣어둠 — 실행 담당자가 이 부분은 반드시 검증 후 코드를 조정해야 함
