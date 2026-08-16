@@ -111,3 +111,56 @@ Deno.test("유효하지 않은 경도를 전달하면 에러를 던진다", () =
     "Invalid longitude"
   );
 });
+
+Deno.test("JSON 숫자 타입 opening/closing 시간을 정규화한다", () => {
+  const raw = {
+    hpid: "A1100005",
+    dutyName: "혼합타입약국",
+    dutyAddr: "서울특별시 중구 1",
+    dutyTel1: "02-1234-5678",
+    wgs84Lon: "126.9",
+    wgs84Lat: "37.5",
+    dutyTime1s: 1000, // number (leading zero 없음)
+    dutyTime1c: 1900, // number
+    dutyTime2s: "0900", // string (leading zero 있음)
+    dutyTime2c: 1400, // number
+    dutyTime3s: "", dutyTime3c: "",
+    dutyTime4s: "", dutyTime4c: "",
+    dutyTime5s: "", dutyTime5c: "",
+    dutyTime6s: "", dutyTime6c: "",
+    dutyTime7s: "", dutyTime7c: "",
+    dutyTime8s: "", dutyTime8c: "",
+  };
+
+  const result = normalizePharmacy(raw);
+
+  // 숫자는 padStart(4, "0")로 정규화되어야 함
+  assertEquals(result.dutyTime.mon, { open: "1000", close: "1900" });
+  // 문자열은 그대로 유지, 숫자는 정규화
+  assertEquals(result.dutyTime.tue, { open: "0900", close: "1400" });
+  assertEquals(result.dutyTime.wed, null);
+});
+
+Deno.test("숫자 시간이 zero-padded로 정규화된다", () => {
+  const raw = {
+    hpid: "A1100006",
+    dutyName: "패딩필요약국",
+    dutyAddr: "서울특별시 중구 1",
+    dutyTel1: "02-1234-5678",
+    wgs84Lon: "126.9",
+    wgs84Lat: "37.5",
+    dutyTime1s: 900, // "0900"으로 패딩됨
+    dutyTime1c: 1800, // "1800"
+    dutyTime2s: "", dutyTime2c: "",
+    dutyTime3s: "", dutyTime3c: "",
+    dutyTime4s: "", dutyTime4c: "",
+    dutyTime5s: "", dutyTime5c: "",
+    dutyTime6s: "", dutyTime6c: "",
+    dutyTime7s: "", dutyTime7c: "",
+    dutyTime8s: "", dutyTime8c: "",
+  };
+
+  const result = normalizePharmacy(raw);
+
+  assertEquals(result.dutyTime.mon, { open: "0900", close: "1800" });
+});

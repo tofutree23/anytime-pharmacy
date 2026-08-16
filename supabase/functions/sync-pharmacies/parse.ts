@@ -5,14 +5,14 @@ export type RawPharmacyItem = {
   dutyTel1: string;
   wgs84Lon: string;
   wgs84Lat: string;
-  dutyTime1s: string; dutyTime1c: string;
-  dutyTime2s: string; dutyTime2c: string;
-  dutyTime3s: string; dutyTime3c: string;
-  dutyTime4s: string; dutyTime4c: string;
-  dutyTime5s: string; dutyTime5c: string;
-  dutyTime6s: string; dutyTime6c: string;
-  dutyTime7s: string; dutyTime7c: string;
-  dutyTime8s: string; dutyTime8c: string;
+  dutyTime1s: string | number; dutyTime1c: string | number;
+  dutyTime2s: string | number; dutyTime2c: string | number;
+  dutyTime3s: string | number; dutyTime3c: string | number;
+  dutyTime4s: string | number; dutyTime4c: string | number;
+  dutyTime5s: string | number; dutyTime5c: string | number;
+  dutyTime6s: string | number; dutyTime6c: string | number;
+  dutyTime7s: string | number; dutyTime7c: string | number;
+  dutyTime8s: string | number; dutyTime8c: string | number;
 };
 
 export type DayHours = { open: string; close: string };
@@ -39,9 +39,17 @@ export type NormalizedPharmacy = {
 };
 
 // 공공API dutyTime1~7 = 월~일, dutyTime8 = 공휴일
-function dayHoursOrNull(open: string, close: string): DayHours | null {
+// 주의: 공공API는 JSON 응답에서 leading zero가 없는 숫자는 number 타입으로 반환함
+// 예: 1000 (number), "0900" (string, leading zero 때문에)
+// 이 함수는 두 타입을 모두 처리하고 zero-padded 4-digit string으로 정규화함
+function dayHoursOrNull(open: string | number, close: string | number): DayHours | null {
   if (!open || !close) return null;
-  return { open, close };
+
+  // 숫자나 문자열을 zero-padded 4-digit 문자열로 변환
+  const openStr = typeof open === "number" ? String(open).padStart(4, "0") : open;
+  const closeStr = typeof close === "number" ? String(close).padStart(4, "0") : close;
+
+  return { open: openStr, close: closeStr };
 }
 
 export function normalizePharmacy(raw: RawPharmacyItem): NormalizedPharmacy {
