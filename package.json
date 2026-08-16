@@ -13,7 +13,10 @@
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "latest",
+    "@emotion/react": "^11.14.0",
     "@supabase/supabase-js": "^2.112.3",
+    "@toss/tds-mobile": "^2.5.1",
+    "@toss/tds-mobile-ait": "^2.5.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
