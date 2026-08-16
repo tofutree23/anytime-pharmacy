@@ -2,8 +2,64 @@ import type { DayHours, DutyTime } from './types';
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
+/**
+ * 주어진 Date를 한국 표준시(KST, UTC+9)로 변환하여
+ * 요일(0-6)과 시간(0-23), 분(0-59)을 반환한다.
+ *
+ * host의 local timezone에 상관없이 항상 KST로 계산한다.
+ */
+function getKstDateParts(date: Date): { dayOfWeek: number; hours: number; minutes: number } {
+  // Intl.DateTimeFormat을 사용하여 KST로 명시적 변환
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const partMap: Record<string, string> = {};
+  parts.forEach(({ type, value }) => {
+    partMap[type] = value;
+  });
+
+  const year = Number(partMap.year);
+  const month = Number(partMap.month) - 1; // 0-indexed
+  const day = Number(partMap.day);
+  const hours = Number(partMap.hour);
+  const minutes = Number(partMap.minute);
+
+  // KST 기준 Date 객체 생성 (UTC 기준)
+  const kstDate = new Date(Date.UTC(year, month, day, hours, minutes, 0));
+
+  // 요일 계산 (UTC Date로 요일을 계산하면 틀릴 수 있으니, 수동 계산)
+  // 간단한 방법: JS epoch로부터의 날 수로 요일 계산
+  // Zeller's congruence 또는 Tomohiko Sakamoto's algorithm 사용
+  const q = day;
+  const m = month < 2 ? month + 13 : month + 1;
+  const y = month < 2 ? year - 1 : year;
+  const K = y % 100;
+  const J = Math.floor(y / 100);
+  const h = (q + Math.floor((13 * (m + 1)) / 5) + K + Math.floor(K / 4) + Math.floor(J / 4) - 2 * J) % 7;
+  const dayOfWeek = (h + 6) % 7; // 0 = Sunday
+
+  return { dayOfWeek, hours, minutes };
+}
+
 function todayHours(dutyTime: DutyTime, now: Date): DayHours | null {
-  const key = DAY_KEYS[now.getDay()];
+  const { dayOfWeek } = getKstDateParts(now);
+  const key = DAY_KEYS[dayOfWeek];
+  return dutyTime[key];
+}
+
+function yesterdayHours(dutyTime: DutyTime, now: Date): DayHours | null {
+  const { dayOfWeek } = getKstDateParts(now);
+  const yesterdayDayOfWeek = (dayOfWeek - 1 + 7) % 7;
+  const key = DAY_KEYS[yesterdayDayOfWeek];
   return dutyTime[key];
 }
 
@@ -14,22 +70,47 @@ function toMinutes(hhmm: string): number {
 }
 
 function nowMinutes(now: Date): number {
-  return now.getHours() * 60 + now.getMinutes();
+  const { hours, minutes } = getKstDateParts(now);
+  return hours * 60 + minutes;
 }
 
 export function isOpenNow(dutyTime: DutyTime, now: Date): boolean {
-  const hours = todayHours(dutyTime, now);
-  if (!hours) return false;
-
   const current = nowMinutes(now);
-  const open = toMinutes(hours.open);
-  const close = toMinutes(hours.close);
+  const hours = todayHours(dutyTime, now);
 
-  if (close < open) {
-    // 자정을 넘겨 영업하는 경우 (예: 22:00 ~ 02:00)
-    return current >= open || current <= close;
+  // Case 1: 오늘 영업시간이 정의됨
+  if (hours) {
+    const open = toMinutes(hours.open);
+    const close = toMinutes(hours.close);
+
+    if (close < open) {
+      // 자정을 넘겨 영업하는 경우 (예: 22:00 ~ 02:00)
+      // 이 경우 shift는 오늘 "open" 시간부터 내일 "close" 시간까지
+      // 따라서 현재 시간이 open 이후여야만 영업중 (내일 early morning은 yesterday check에서)
+      return current >= open;
+    }
+    // 정상적인 영업시간 (같은 날짜 내)
+    return current >= open && current <= close;
   }
-  return current >= open && current <= close;
+
+  // Case 2: 오늘 영업시간이 없으면, 어제 밤 자정 넘김 여부 확인
+  // 어제의 영업시간이 자정을 넘기는 경우 (close < open),
+  // 어제의 shift는 어제 "open"부터 오늘 "close"까지
+  // 현재가 오늘 early morning이고, 현재 시간이 어제의 close 시간 이전이면 영업중
+  const yesterdayHour = yesterdayHours(dutyTime, now);
+  if (!yesterdayHour) return false;
+
+  const yesterdayOpen = toMinutes(yesterdayHour.open);
+  const yesterdayClose = toMinutes(yesterdayHour.close);
+
+  // 어제가 자정을 넘기는 경우만 확인
+  if (yesterdayClose < yesterdayOpen) {
+    // 어제의 shift: 어제 open ~ 오늘 close
+    // 현재 시간이 어제의 close 시간 이전이면 어제 밤부터 계속 영업중
+    return current <= yesterdayClose;
+  }
+
+  return false;
 }
 
 export function isNightHours(dutyTime: DutyTime, now: Date, nightStartHHmm = '2200'): boolean {
