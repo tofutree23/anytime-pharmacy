@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizePharmacy, type RawPharmacyItem } from "./parse.ts";
 
-const API_BASE = "https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire";
+const API_BASE =
+  "https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire";
 // 실제 데이터는 25,000건 이상이라 페이지당 100건(브리프 원안)으로는 253회의 순차 요청이
 // 필요해 Edge Function의 리소스 한도(WORKER_RESOURCE_LIMIT)를 초과한다. 공공API가
 // numOfRows=1000을 문제없이 지원함을 확인했으므로 페이지당 1000건으로 늘려 요청 횟수를
@@ -21,18 +22,38 @@ function normalizeServiceKey(key: string): string {
   }
 }
 
-async function fetchAllPharmacies(serviceKey: string): Promise<RawPharmacyItem[]> {
+// 서비스키가 포함된 URL이나 원본 예외가 그대로 로그/응답에 노출되지 않도록,
+// 공공API 호출 실패는 이 전용 에러 타입으로만 던진다. message에는 절대
+// URL이나 쿼리스트링을 포함하지 않는다.
+class PublicApiError extends Error {}
+
+async function fetchAllPharmacies(
+  serviceKey: string,
+): Promise<RawPharmacyItem[]> {
   const items: RawPharmacyItem[] = [];
   let pageNo = 1;
 
   while (true) {
-    const url = `${API_BASE}?serviceKey=${normalizeServiceKey(serviceKey)}&pageNo=${pageNo}&numOfRows=${PAGE_SIZE}&_type=json`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; anytime-pharmacy-sync/1.0)" },
-    });
+    const url = `${API_BASE}?serviceKey=${
+      normalizeServiceKey(serviceKey)
+    }&pageNo=${pageNo}&numOfRows=${PAGE_SIZE}&_type=json`;
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; anytime-pharmacy-sync/1.0)",
+        },
+      });
+    } catch {
+      // fetch()가 던지는 네트워크 레벨 예외는 요청 URL(서비스키 포함)을 포함할 수 있어
+      // 원본 예외를 그대로 전파하지 않는다.
+      throw new PublicApiError("공공API 네트워크 오류");
+    }
+
     if (!res.ok) {
-      const bodyText = await res.text();
-      throw new Error(`공공API 응답 실패: ${res.status} ${bodyText.slice(0, 500)}`);
+      // 응답 본문은 서비스키를 포함하지 않지만, 불필요한 상세 노출을 줄이기 위해 상태 코드만 남긴다.
+      throw new PublicApiError(`공공API 요청 실패: 상태 코드 ${res.status}`);
     }
     const json = await res.json();
     const body = json?.response?.body;
@@ -75,7 +96,9 @@ Deno.serve(async () => {
 
     for (let i = 0; i < rows.length; i += UPSERT_CHUNK_SIZE) {
       const chunk = rows.slice(i, i + UPSERT_CHUNK_SIZE);
-      const { error } = await supabase.from("pharmacies").upsert(chunk, { onConflict: "id" });
+      const { error } = await supabase.from("pharmacies").upsert(chunk, {
+        onConflict: "id",
+      });
       if (error) throw error;
     }
 
@@ -84,8 +107,15 @@ Deno.serve(async () => {
     });
   } catch (err) {
     // 공공API 실패 시 기존 캐시를 그대로 유지하고 실패만 로그로 남긴다.
-    console.error("약국 데이터 동기화 실패, 캐시 유지:", err);
-    return new Response(JSON.stringify({ error: String(err) }), {
+    // 원본 예외(err)는 서비스키가 포함된 요청 URL을 담고 있을 수 있으므로
+    // 로그와 응답 모두에 절대 그대로 노출하지 않는다. PublicApiError는 이미
+    // 안전한 메시지만 담고 있고, 그 외(예: Supabase upsert 에러)는 정체를
+    // 알 수 없는 상세 정보를 걸러낸 일반 메시지로 대체한다.
+    const safeMessage = err instanceof PublicApiError
+      ? err.message
+      : "약국 데이터 동기화 실패";
+    console.error("약국 데이터 동기화 실패, 캐시 유지:", safeMessage);
+    return new Response(JSON.stringify({ error: safeMessage }), {
       status: 502,
       headers: { "Content-Type": "application/json" },
     });
