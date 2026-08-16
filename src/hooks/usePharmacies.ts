@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Pharmacy } from '../domain/types';
 
@@ -36,38 +36,50 @@ export function usePharmacies(query: PharmacyQuery) {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const fetchPharmacies = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
 
-    if (query.type === 'nearby') {
-      const { data, error: rpcError } = await supabase.rpc('nearby_pharmacies', {
-        target_lat: query.lat,
-        target_lng: query.lng,
-        max_distance_meters: 5000,
-      });
-      if (rpcError) {
-        setError(rpcError.message);
-        setPharmacies([]);
+    try {
+      if (query.type === 'nearby') {
+        const { data, error: rpcError } = await supabase.rpc('nearby_pharmacies', {
+          target_lat: query.lat,
+          target_lng: query.lng,
+          max_distance_meters: 5000,
+        });
+        if (requestIdRef.current !== requestId) return;
+        if (rpcError) {
+          setError(rpcError.message);
+          setPharmacies([]);
+        } else {
+          setPharmacies(((data ?? []) as PharmacyRow[]).map(toPharmacy));
+        }
       } else {
-        setPharmacies(((data ?? []) as PharmacyRow[]).map(toPharmacy));
+        const { data, error: queryError } = await supabase
+          .from('pharmacies')
+          .select('*')
+          .ilike('address', `${query.regionPrefix}%`)
+          .order('name', { ascending: true });
+        if (requestIdRef.current !== requestId) return;
+        if (queryError) {
+          setError(queryError.message);
+          setPharmacies([]);
+        } else {
+          setPharmacies(((data ?? []) as PharmacyRow[]).map(toPharmacy));
+        }
       }
-    } else {
-      const { data, error: queryError } = await supabase
-        .from('pharmacies')
-        .select('*')
-        .ilike('address', `${query.regionPrefix}%`)
-        .order('name', { ascending: true });
-      if (queryError) {
-        setError(queryError.message);
-        setPharmacies([]);
-      } else {
-        setPharmacies(((data ?? []) as PharmacyRow[]).map(toPharmacy));
+    } catch (err) {
+      if (requestIdRef.current !== requestId) return;
+      setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했어요.');
+      setPharmacies([]);
+    } finally {
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
       }
     }
-
-    setLoading(false);
   }, [query.type, query.type === 'nearby' ? query.lat : query.regionPrefix, query.type === 'nearby' ? query.lng : null]);
 
   useEffect(() => {
