@@ -45,13 +45,28 @@ function dayHoursOrNull(open: string, close: string): DayHours | null {
 }
 
 export function normalizePharmacy(raw: RawPharmacyItem): NormalizedPharmacy {
+  const lat = Number(raw.wgs84Lat);
+  const lng = Number(raw.wgs84Lon);
+
+  if (isNaN(lat)) {
+    throw new Error(
+      `Invalid latitude for pharmacy ${raw.hpid}: "${raw.wgs84Lat}" is not a valid number`
+    );
+  }
+
+  if (isNaN(lng)) {
+    throw new Error(
+      `Invalid longitude for pharmacy ${raw.hpid}: "${raw.wgs84Lon}" is not a valid number`
+    );
+  }
+
   return {
     id: raw.hpid,
     name: raw.dutyName,
     address: raw.dutyAddr,
     phone: raw.dutyTel1 ? raw.dutyTel1 : null,
-    lat: Number(raw.wgs84Lat),
-    lng: Number(raw.wgs84Lon),
+    lat,
+    lng,
     dutyTime: {
       mon: dayHoursOrNull(raw.dutyTime1s, raw.dutyTime1c),
       tue: dayHoursOrNull(raw.dutyTime2s, raw.dutyTime2c),

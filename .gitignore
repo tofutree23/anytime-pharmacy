@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 *.ait
+
+# Deno lockfile (generated locally, not committed)
+deno.lock

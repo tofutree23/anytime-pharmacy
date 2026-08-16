@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals, assertThrows } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { normalizePharmacy } from "./parse.ts";
 
 Deno.test("정상 응답을 NormalizedPharmacy로 변환한다", () => {
@@ -60,4 +60,54 @@ Deno.test("전화번호가 없으면 null을 반환한다", () => {
   const result = normalizePharmacy(raw);
 
   assertEquals(result.phone, null);
+});
+
+Deno.test("유효하지 않은 위도를 전달하면 에러를 던진다", () => {
+  const raw = {
+    hpid: "A1100003",
+    dutyName: "에러약국",
+    dutyAddr: "서울특별시 중구 1",
+    dutyTel1: "02-1234-5678",
+    wgs84Lon: "126.9",
+    wgs84Lat: "invalid",
+    dutyTime1s: "", dutyTime1c: "",
+    dutyTime2s: "", dutyTime2c: "",
+    dutyTime3s: "", dutyTime3c: "",
+    dutyTime4s: "", dutyTime4c: "",
+    dutyTime5s: "", dutyTime5c: "",
+    dutyTime6s: "", dutyTime6c: "",
+    dutyTime7s: "", dutyTime7c: "",
+    dutyTime8s: "", dutyTime8c: "",
+  };
+
+  assertThrows(
+    () => normalizePharmacy(raw),
+    Error,
+    "Invalid latitude"
+  );
+});
+
+Deno.test("유효하지 않은 경도를 전달하면 에러를 던진다", () => {
+  const raw = {
+    hpid: "A1100004",
+    dutyName: "에러약국2",
+    dutyAddr: "서울특별시 중구 1",
+    dutyTel1: "02-1234-5678",
+    wgs84Lon: "invalid",
+    wgs84Lat: "37.5",
+    dutyTime1s: "", dutyTime1c: "",
+    dutyTime2s: "", dutyTime2c: "",
+    dutyTime3s: "", dutyTime3c: "",
+    dutyTime4s: "", dutyTime4c: "",
+    dutyTime5s: "", dutyTime5c: "",
+    dutyTime6s: "", dutyTime6c: "",
+    dutyTime7s: "", dutyTime7c: "",
+    dutyTime8s: "", dutyTime8c: "",
+  };
+
+  assertThrows(
+    () => normalizePharmacy(raw),
+    Error,
+    "Invalid longitude"
+  );
 });
