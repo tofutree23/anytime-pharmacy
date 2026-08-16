@@ -298,7 +298,7 @@ curl -s "http://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyLi
 `supabase/functions/.env.example`:
 
 ```
-DATA_GO_KR_SERVICE_KEY=여기에_발급받은_서비스키
+DATA_GOV_KEY=여기에_발급받은_서비스키
 ```
 
 실제 키는 Supabase 대시보드 → Edge Functions → Secrets에 등록하고, `.env.example`은 커밋하되 실제 `.env`는 커밋하지 않는다 (`.gitignore`에 `supabase/functions/.env` 추가).
@@ -338,7 +338,7 @@ async function fetchAllPharmacies(serviceKey: string): Promise<RawPharmacyItem[]
 }
 
 Deno.serve(async () => {
-  const serviceKey = Deno.env.get("DATA_GO_KR_SERVICE_KEY");
+  const serviceKey = Deno.env.get("DATA_GOV_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -384,7 +384,7 @@ Deno.serve(async () => {
 
 ```bash
 npx supabase functions deploy sync-pharmacies
-npx supabase secrets set DATA_GO_KR_SERVICE_KEY=<발급받은_서비스키>
+npx supabase secrets set DATA_GOV_KEY=<발급받은_서비스키>
 curl -X POST "https://<project-ref>.supabase.co/functions/v1/sync-pharmacies" \
   -H "Authorization: Bearer <SUPABASE_ANON_KEY>"
 ```
