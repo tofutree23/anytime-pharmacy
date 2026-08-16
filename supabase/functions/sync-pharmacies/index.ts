@@ -2,7 +2,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizePharmacy, type RawPharmacyItem } from "./parse.ts";
 
 const API_BASE = "https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire";
-const PAGE_SIZE = 100;
+// 실제 데이터는 25,000건 이상이라 페이지당 100건(브리프 원안)으로는 253회의 순차 요청이
+// 필요해 Edge Function의 리소스 한도(WORKER_RESOURCE_LIMIT)를 초과한다. 공공API가
+// numOfRows=1000을 문제없이 지원함을 확인했으므로 페이지당 1000건으로 늘려 요청 횟수를
+// 26회 수준으로 줄인다.
+const PAGE_SIZE = 1000;
+// upsert도 25,000+건을 한 번에 보내면 동일한 리소스 한도에 걸릴 수 있어 청크 단위로 나눈다.
+const UPSERT_CHUNK_SIZE = 500;
 
 // data.go.kr가 발급하는 서비스키는 이미 URL 인코딩된 형태(%2B, %2F, %3D 포함)로 제공되는
 // 경우가 있어, 원본 문자열을 한 번 디코드한 뒤 다시 인코딩해 이중 인코딩을 방지한다.
@@ -41,31 +47,13 @@ async function fetchAllPharmacies(serviceKey: string): Promise<RawPharmacyItem[]
   return items;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async () => {
   const serviceKey = Deno.env.get("DATA_GOV_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!serviceKey || !supabaseUrl || !serviceRoleKey) {
     return new Response("환경변수 누락", { status: 500 });
-  }
-
-  // TEMP DIAGNOSTIC (to be removed before final commit): fetch only page 1 and report shape.
-  if (new URL(req.url).searchParams.get("diag") === "1") {
-    const testSize = new URL(req.url).searchParams.get("size") ?? "1000";
-    const t0 = Date.now();
-    const url = `${API_BASE}?serviceKey=${normalizeServiceKey(serviceKey)}&pageNo=1&numOfRows=${testSize}&_type=json`;
-    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; anytime-pharmacy-sync/1.0)" } });
-    const json = await res.json();
-    const itemsRaw = json?.response?.body?.items?.item;
-    const itemsLen = Array.isArray(itemsRaw) ? itemsRaw.length : (itemsRaw ? 1 : 0);
-    return new Response(JSON.stringify({
-      status: res.status,
-      requestedSize: testSize,
-      totalCount: json?.response?.body?.totalCount,
-      itemsLen,
-      ms: Date.now() - t0,
-    }), { headers: { "Content-Type": "application/json" } });
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -85,8 +73,11 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase.from("pharmacies").upsert(rows, { onConflict: "id" });
-    if (error) throw error;
+    for (let i = 0; i < rows.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + UPSERT_CHUNK_SIZE);
+      const { error } = await supabase.from("pharmacies").upsert(chunk, { onConflict: "id" });
+      if (error) throw error;
+    }
 
     return new Response(JSON.stringify({ synced: rows.length }), {
       headers: { "Content-Type": "application/json" },
