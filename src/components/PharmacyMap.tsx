@@ -51,7 +51,7 @@ export function PharmacyMap({
   const mapRef = useRef<KakaoMap | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
   const pendingBoundsRef = useRef<MapBounds | null>(null);
-  // 최초 idle에서는 버튼 없이 바로 한 번 검색을 실행해 초기 데이터를 채운다.
+  // 최초 지도 생성 시 버튼 없이 바로 한 번 검색을 실행해 초기 데이터를 채운다.
   // 이후부터는 지도를 움직여도 버튼을 눌러야만 재검색된다.
   const hasAutoSearchedRef = useRef(false);
 
@@ -91,17 +91,16 @@ export function PharmacyMap({
       mapRef.current = map;
       setInitError(null);
 
-      // 지도가 움직임을 멈출 때마다(드래그/줌 종료) 호출된다. 최초 1회는 자동으로
-      // onSearchThisArea를 실행해 초기 데이터를 채우고, 이후에는 버튼을 눌러야만
+      if (onSearchThisAreaRef.current) {
+        onSearchThisAreaRef.current(toMapBounds(map.getBounds()));
+        hasAutoSearchedRef.current = true;
+      }
+
+      // 지도가 움직임을 멈출 때마다(드래그/줌 종료) 호출된다. 버튼을 눌러야만
       // 재검색되도록 pendingBoundsRef에 보관만 해둔다(과도한 조회 방지).
       kakao.maps.event.addListener(map, 'idle', () => {
         if (!onSearchThisAreaRef.current) return;
         const bounds = toMapBounds(map.getBounds());
-        if (!hasAutoSearchedRef.current) {
-          hasAutoSearchedRef.current = true;
-          onSearchThisAreaRef.current(bounds);
-          return;
-        }
         pendingBoundsRef.current = bounds;
         setShowSearchButton(true);
       });

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
@@ -69,6 +69,11 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     estimateSize: () => 92,
     overscan: 6,
   });
+
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    scrollContainerRef.current.scrollTop = 0;
+  }, [activeFilters]);
 
   // 목록이 비어 있을 때의 안내 문구. 원인(필터 vs 지역/범위 자체에 데이터 없음)에 따라
   // 다른 문구를 보여줘야 사용자가 다음에 뭘 해야 할지 알 수 있다.
