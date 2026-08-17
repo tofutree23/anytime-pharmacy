@@ -31,11 +31,18 @@ function normalizeServiceKey(key: string): string {
 // URL이나 쿼리스트링을 포함하지 않는다.
 class PublicApiError extends Error {}
 
+// complete = true면 totalCount 전체를 정상적으로 끝까지 순회했다는 뜻이다.
+// false면 페이지네이션 도중 예상치 못한 빈 페이지를 만나 fetch를 중단했다는 뜻이며,
+// 이 경우 호출부는 (delisted 약국을 정리하는) pruning을 절대 수행해서는 안 된다 —
+// 아직 못 가져온 뒷페이지의 약국들이 "더 이상 존재하지 않음"으로 오인되어 삭제될 수 있기 때문.
+type FetchResult = { items: RawPharmacyItem[]; complete: boolean };
+
 async function fetchAllPharmacies(
   serviceKey: string,
-): Promise<RawPharmacyItem[]> {
+): Promise<FetchResult> {
   const items: RawPharmacyItem[] = [];
   let pageNo = 1;
+  let emptyPageRetried = false;
 
   while (true) {
     const url = `${API_BASE}?serviceKey=${
@@ -61,15 +68,39 @@ async function fetchAllPharmacies(
     }
     const json = await res.json();
     const body = json?.response?.body;
-    const pageItems: RawPharmacyItem[] = body?.items?.item ?? [];
-    items.push(...(Array.isArray(pageItems) ? pageItems : [pageItems]));
+    const rawPageItems = body?.items?.item ?? [];
+    const pageItems: RawPharmacyItem[] = Array.isArray(rawPageItems)
+      ? rawPageItems
+      : [rawPageItems];
 
     const totalCount = body?.totalCount ?? 0;
-    if (pageNo * PAGE_SIZE >= totalCount || pageItems.length === 0) break;
+    const reachedExpectedEnd = pageNo * PAGE_SIZE >= totalCount;
+
+    // totalCount에 도달하기 전에 빈 페이지가 오면 정상적인 마지막 페이지가 아니라
+    // API 쪽의 일시적 이상(레이트리밋, 순간 오류 등)일 가능성이 높다. 이를 "fetch 완료"로
+    // 오인해 뒷페이지 약국들을 pruning 대상으로 삼는 일이 없도록, 같은 페이지를 한 번
+    // 재시도하고 그래도 비어 있으면 fetch를 불완전한 것으로 표시하고 중단한다.
+    if (pageItems.length === 0 && !reachedExpectedEnd) {
+      if (!emptyPageRetried) {
+        emptyPageRetried = true;
+        continue;
+      }
+      console.warn(
+        `공공API 페이지네이션 이상 감지: ${pageNo}페이지가 비어 있음 ` +
+          `(totalCount=${totalCount}, 지금까지 수집=${items.length}건). ` +
+          `이번 실행은 fetch를 중단하고 pruning을 건너뜁니다.`,
+      );
+      return { items, complete: false };
+    }
+
+    emptyPageRetried = false;
+    items.push(...pageItems);
+
+    if (reachedExpectedEnd || pageItems.length === 0) break;
     pageNo += 1;
   }
 
-  return items;
+  return { items, complete: true };
 }
 
 Deno.serve(async () => {
@@ -84,20 +115,27 @@ Deno.serve(async () => {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   try {
-    const rawItems = await fetchAllPharmacies(serviceKey);
+    const { items: rawItems, complete: fetchComplete } = await fetchAllPharmacies(
+      serviceKey,
+    );
 
     // 공공API의 불량 행 하나 때문에 동기화 전체가 실패하면 캐시가 영구히 낡아버린다.
     // 행 단위로 예외를 잡아 건너뛰고 개수만 집계한다.
     // (로그에는 임의의 API 응답 내용이 남지 않도록 건수만 남긴다.)
+    //
+    // 정규화에 실패한 행의 hpid도 별도로 모아둔다: 이 약국은 공공API 응답에
+    // "여전히 존재"했으므로(파싱만 실패했을 뿐) 아래 pruning 단계에서
+    // updated_at이 갱신되지 않았다는 이유만으로 delisted 취급되어 삭제되면 안 된다.
     const normalized: NormalizedPharmacy[] = [];
-    let skipped = 0;
+    const skippedIds: string[] = [];
     for (const raw of rawItems) {
       try {
         normalized.push(normalizePharmacy(raw));
       } catch {
-        skipped += 1;
+        skippedIds.push(raw.hpid);
       }
     }
+    const skipped = skippedIds.length;
     if (skipped > 0) {
       console.warn(`정규화 실패로 건너뛴 약국 행: ${skipped}건 / 전체 ${rawItems.length}건`);
     }
@@ -126,25 +164,45 @@ Deno.serve(async () => {
 
     // 공공API 현재 데이터셋에 더 이상 없는 약국(= 이번 동기화가 건드리지 않은 행)을 정리한다.
     // 폐업한 약국이 계속 "영업중"으로 남는 것이 건강정보 앱에서는 실제 피해로 이어진다.
-    // fetch + upsert가 모두 성공한 뒤에만 실행하며(실패 시에는 위에서 이미 early return),
-    // 결과가 비어 있으면 테이블을 통째로 비울 위험이 있어 정리를 건너뛴다.
+    //
+    // pruning은 다음 두 조건을 모두 만족할 때만 실행한다:
+    //   1) fetch가 totalCount 전체를 정상적으로 끝까지 순회했을 것(fetchComplete).
+    //      페이지네이션 도중 이상 징후로 중단됐다면 아직 못 가져온 뒷페이지의 약국들이
+    //      "사라짐"으로 오인될 수 있으므로 이번 실행은 pruning을 건너뛴다.
+    //   2) 결과가 비어 있지 않을 것 — 비어 있으면 테이블을 통째로 비울 위험이 있다.
+    // 또한 이번 실행에서 정규화에 실패한(=파싱만 실패했을 뿐 API 응답엔 여전히 존재하는)
+    // 약국의 id는 삭제 대상에서 명시적으로 제외한다. updated_at만 보고 판단하면
+    // "이번 run이 건드리지 않은 행 = 폐업"이라는 전제가 깨지기 때문이다.
     let pruned = 0;
-    if (rows.length > 0) {
-      const { data: deleted, error: deleteError } = await supabase
+    let pruningSkipped = false;
+    if (rows.length > 0 && fetchComplete) {
+      let deleteQuery = supabase
         .from("pharmacies")
         .delete()
-        .lt("updated_at", syncedAt)
-        .select("id");
+        .lt("updated_at", syncedAt);
+      if (skippedIds.length > 0) {
+        const idList = skippedIds.map((id) => `"${id}"`).join(",");
+        deleteQuery = deleteQuery.not("id", "in", `(${idList})`);
+      }
+      const { data: deleted, error: deleteError } = await deleteQuery.select("id");
       if (deleteError) throw deleteError;
       pruned = deleted?.length ?? 0;
       if (pruned > 0) {
         console.info(`공공API에서 사라진 약국 정리: ${pruned}건`);
       }
+    } else if (rows.length > 0 && !fetchComplete) {
+      pruningSkipped = true;
+      console.warn(
+        "fetch가 페이지네이션 도중 중단되어(불완전한 데이터셋) 이번 실행에서는 pruning을 건너뜁니다.",
+      );
     }
 
-    return new Response(JSON.stringify({ synced: rows.length, skipped, pruned }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ synced: rows.length, skipped, pruned, pruningSkipped }),
+      {
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     // 공공API 실패 시 기존 캐시를 그대로 유지하고 실패만 로그로 남긴다.
     // 원본 예외(err)는 서비스키가 포함된 요청 URL을 담고 있을 수 있으므로
