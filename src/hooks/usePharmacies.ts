@@ -35,6 +35,11 @@ function toPharmacy(row: PharmacyRow): Pharmacy {
 // 목록(가상화 없음)과 지도 마커가 모두 행 수에 비례해 무거워지므로 렌더 성능을 위한 상한이다.
 export const REGION_QUERY_LIMIT = 200;
 
+// GPS 주변 조회도 도심 밀집 지역에서는 5km 반경 안에 수백 건이 나올 수 있다.
+// nearby_pharmacies는 이미 거리순(가까운 순)으로 정렬해서 내려주므로, 상한을 걸어도
+// "가까운 순" 정렬은 그대로 유지된 채 먼 결과만 잘려나간다. 지역 조회 상한과 동일하게 맞춘다.
+export const NEARBY_QUERY_LIMIT = 200;
+
 export type PharmacyQuery =
   | { type: 'nearby'; lat: number; lng: number }
   | { type: 'region'; regionPrefix: string };
@@ -64,11 +69,13 @@ export function usePharmacies(query: PharmacyQuery) {
 
     const runQueryOnce = async (): Promise<{ rows: PharmacyRow[] | null; message: string | null }> => {
       if (query.type === 'nearby') {
-        const { data, error: rpcError } = await supabase.rpc('nearby_pharmacies', {
-          target_lat: query.lat,
-          target_lng: query.lng,
-          max_distance_meters: 5000,
-        });
+        const { data, error: rpcError } = await supabase
+          .rpc('nearby_pharmacies', {
+            target_lat: query.lat,
+            target_lng: query.lng,
+            max_distance_meters: 5000,
+          })
+          .limit(NEARBY_QUERY_LIMIT);
         return { rows: (data ?? []) as PharmacyRow[], message: rpcError?.message ?? null };
       }
       const { data, error: queryError } = await supabase

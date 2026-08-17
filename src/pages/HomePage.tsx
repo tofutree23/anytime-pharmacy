@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { List, Top, Paragraph, TextButton } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
-import { usePharmacies, REGION_QUERY_LIMIT } from '../hooks/usePharmacies';
+import { usePharmacies, REGION_QUERY_LIMIT, NEARBY_QUERY_LIMIT } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
 import { FilterBar, type FilterKey } from '../components/FilterBar';
 import { PharmacyCard } from '../components/PharmacyCard';
@@ -45,9 +45,13 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     });
   }, [pharmacies, activeFilters]);
 
-  // 지역 조회는 상한(REGION_QUERY_LIMIT)까지만 가져오므로, 상한에 걸린 경우
-  // 결과가 잘렸다는 사실을 사용자에게 알려준다.
-  const regionTruncated = query?.type === 'region' && pharmacies.length >= REGION_QUERY_LIMIT;
+  // 지역/주변(GPS) 조회 모두 각자의 상한(REGION_QUERY_LIMIT / NEARBY_QUERY_LIMIT)까지만
+  // 가져오므로, 상한에 걸린 경우 결과가 잘렸다는 사실을 사용자에게 알려준다.
+  // nearby_pharmacies는 이미 거리순으로 정렬되어 오므로 상한을 적용해도 "가까운 순"은
+  // 그대로 유지된다.
+  const resultsTruncated =
+    (query?.type === 'region' && pharmacies.length >= REGION_QUERY_LIMIT) ||
+    (query?.type === 'nearby' && pharmacies.length >= NEARBY_QUERY_LIMIT);
 
   const isRegionMode = query?.type === 'region';
 
@@ -91,9 +95,11 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       {!loading && !error && filteredPharmacies.length === 0 && (
         <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
       )}
-      {!loading && !error && regionTruncated && (
+      {!loading && !error && resultsTruncated && (
         <Paragraph typography="st10">
-          지역 내 약국이 많아 일부만 표시돼요. 필터를 사용해 좁혀보세요.
+          {isRegionMode
+            ? '지역 내 약국이 많아 일부만 표시돼요. 필터를 사용해 좁혀보세요.'
+            : '주변 약국이 많아 가까운 순으로 일부만 표시돼요. 필터를 사용해 좁혀보세요.'}
         </Paragraph>
       )}
       <PharmacyMap
