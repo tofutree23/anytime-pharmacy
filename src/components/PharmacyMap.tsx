@@ -9,6 +9,9 @@ type PharmacyMapProps = {
 };
 
 const MAP_HEIGHT = '45vh';
+// 마커는 한 개씩 동기적으로 생성되므로 행 수가 많으면 그대로 프리즈로 이어진다.
+// 호출자가 상한 없는 배열을 넘기더라도 안전하도록 방어적으로 자른다.
+const MAX_MARKERS = 200;
 
 export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMapProps) {
   const { isLoaded, error: loadError } = useKakaoMap();
@@ -44,7 +47,7 @@ export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMa
       });
 
       // 모든 약국을 동일한 마커로 표시 — 강조/순위 없음
-      const markers = pharmacies.map((pharmacy) => {
+      const markers = pharmacies.slice(0, MAX_MARKERS).map((pharmacy) => {
         const marker = new kakao.maps.Marker({
           position: new kakao.maps.LatLng(pharmacy.lat, pharmacy.lng),
           map,

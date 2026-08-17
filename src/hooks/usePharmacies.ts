@@ -28,6 +28,10 @@ function toPharmacy(row: PharmacyRow): Pharmacy {
   };
 }
 
+// 지역 조회는 서울/경기처럼 수천 건이 나오는 지역이 있어 상한을 둔다.
+// 목록(가상화 없음)과 지도 마커가 모두 행 수에 비례해 무거워지므로 렌더 성능을 위한 상한이다.
+export const REGION_QUERY_LIMIT = 200;
+
 export type PharmacyQuery =
   | { type: 'nearby'; lat: number; lng: number }
   | { type: 'region'; regionPrefix: string };
@@ -62,7 +66,8 @@ export function usePharmacies(query: PharmacyQuery) {
           .from('pharmacies')
           .select('*')
           .ilike('address', `${query.regionPrefix}%`)
-          .order('name', { ascending: true });
+          .order('name', { ascending: true })
+          .limit(REGION_QUERY_LIMIT);
         if (requestIdRef.current !== requestId) return;
         if (queryError) {
           setError(queryError.message);
