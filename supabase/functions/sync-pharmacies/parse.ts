@@ -52,19 +52,25 @@ function dayHoursOrNull(open: string | number, close: string | number): DayHours
   return { open: openStr, close: closeStr };
 }
 
+// 대한민국(제주 포함) 전역을 넉넉히 감싸는 좌표 범위.
+// Number("")가 NaN이 아니라 0이므로 isNaN 검사만으로는 빈 좌표가 통과해
+// (0, 0) 기니만 앞바다에 약국이 저장되는 문제가 있었다.
+const KOREA_LAT_RANGE = { min: 33, max: 39 };
+const KOREA_LNG_RANGE = { min: 124, max: 132 };
+
 export function normalizePharmacy(raw: RawPharmacyItem): NormalizedPharmacy {
   const lat = Number(raw.wgs84Lat);
   const lng = Number(raw.wgs84Lon);
 
-  if (isNaN(lat)) {
+  if (isNaN(lat) || lat < KOREA_LAT_RANGE.min || lat > KOREA_LAT_RANGE.max) {
     throw new Error(
-      `Invalid latitude for pharmacy ${raw.hpid}: "${raw.wgs84Lat}" is not a valid number`
+      `Invalid latitude for pharmacy ${raw.hpid}: "${raw.wgs84Lat}" is not a valid Korean latitude`
     );
   }
 
-  if (isNaN(lng)) {
+  if (isNaN(lng) || lng < KOREA_LNG_RANGE.min || lng > KOREA_LNG_RANGE.max) {
     throw new Error(
-      `Invalid longitude for pharmacy ${raw.hpid}: "${raw.wgs84Lon}" is not a valid number`
+      `Invalid longitude for pharmacy ${raw.hpid}: "${raw.wgs84Lon}" is not a valid Korean longitude`
     );
   }
 

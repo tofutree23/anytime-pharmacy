@@ -164,3 +164,45 @@ Deno.test("숫자 시간이 zero-padded로 정규화된다", () => {
 
   assertEquals(result.dutyTime.mon, { open: "0900", close: "1800" });
 });
+
+Deno.test("대한민국 범위를 벗어난 좌표(0, 0)는 거부한다", () => {
+  const raw = {
+    hpid: "A1100007",
+    dutyName: "기니만약국",
+    dutyAddr: "서울특별시 중구 1",
+    dutyTel1: "02-1234-5678",
+    wgs84Lon: "0",
+    wgs84Lat: "0",
+    dutyTime1s: "", dutyTime1c: "",
+    dutyTime2s: "", dutyTime2c: "",
+    dutyTime3s: "", dutyTime3c: "",
+    dutyTime4s: "", dutyTime4c: "",
+    dutyTime5s: "", dutyTime5c: "",
+    dutyTime6s: "", dutyTime6c: "",
+    dutyTime7s: "", dutyTime7c: "",
+    dutyTime8s: "", dutyTime8c: "",
+  };
+
+  assertThrows(() => normalizePharmacy(raw), Error, "Invalid latitude");
+});
+
+Deno.test("빈 문자열 좌표는 Number(\"\")가 0이라 NaN 검사를 통과하지만 거부된다", () => {
+  const raw = {
+    hpid: "A1100008",
+    dutyName: "빈좌표약국",
+    dutyAddr: "서울특별시 중구 1",
+    dutyTel1: "02-1234-5678",
+    wgs84Lon: "",
+    wgs84Lat: "37.5",
+    dutyTime1s: "", dutyTime1c: "",
+    dutyTime2s: "", dutyTime2c: "",
+    dutyTime3s: "", dutyTime3c: "",
+    dutyTime4s: "", dutyTime4c: "",
+    dutyTime5s: "", dutyTime5c: "",
+    dutyTime6s: "", dutyTime6c: "",
+    dutyTime7s: "", dutyTime7c: "",
+    dutyTime8s: "", dutyTime8c: "",
+  };
+
+  assertThrows(() => normalizePharmacy(raw), Error, "Invalid longitude");
+});

@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { normalizePharmacy, type RawPharmacyItem } from "./parse.ts";
+import {
+  normalizePharmacy,
+  type NormalizedPharmacy,
+  type RawPharmacyItem,
+} from "./parse.ts";
 
 const API_BASE =
   "https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire";
@@ -81,7 +85,22 @@ Deno.serve(async () => {
 
   try {
     const rawItems = await fetchAllPharmacies(serviceKey);
-    const normalized = rawItems.map(normalizePharmacy);
+
+    // 공공API의 불량 행 하나 때문에 동기화 전체가 실패하면 캐시가 영구히 낡아버린다.
+    // 행 단위로 예외를 잡아 건너뛰고 개수만 집계한다.
+    // (로그에는 임의의 API 응답 내용이 남지 않도록 건수만 남긴다.)
+    const normalized: NormalizedPharmacy[] = [];
+    let skipped = 0;
+    for (const raw of rawItems) {
+      try {
+        normalized.push(normalizePharmacy(raw));
+      } catch {
+        skipped += 1;
+      }
+    }
+    if (skipped > 0) {
+      console.warn(`정규화 실패로 건너뛴 약국 행: ${skipped}건 / 전체 ${rawItems.length}건`);
+    }
 
     const rows = normalized.map((p) => ({
       id: p.id,
@@ -102,7 +121,7 @@ Deno.serve(async () => {
       if (error) throw error;
     }
 
-    return new Response(JSON.stringify({ synced: rows.length }), {
+    return new Response(JSON.stringify({ synced: rows.length, skipped }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
