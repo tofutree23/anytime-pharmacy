@@ -1398,7 +1398,130 @@ git commit -m "feat: TDS 기반 약국 상세 화면 구현"
 
 ---
 
-## Task 12: 기존 예제 코드 정리
+## Task 12: 배너 광고 연동
+
+**Files:**
+- Create: `src/hooks/useTossBanner.ts`
+- Create: `src/components/BannerAd.tsx`
+- Modify: `src/pages/HomePage.tsx` (배너 마운트)
+- Modify: `.env.example` (`VITE_TOSS_AD_GROUP_ID` 추가)
+
+**Interfaces:**
+- Consumes: `@apps-in-toss/web-framework`의 `TossAds.initialize`/`TossAds.attachBanner`
+- Produces: `function BannerAd(): JSX.Element` — 하단 고정 배너, `HomePage` 리스트 하단에 마운트
+
+**배경**: 약국 광고/프로모션(가이드라인상 금지)과는 무관한 일반 인앱 광고(토스 광고 네트워크)다. "정보 조회 화면에 상시 노출되는 배너"가 리워드/전면 광고보다 이 앱 성격에 맞아 배너로 선택했다. 실제 `adGroupId`는 아직 콘솔에서 발급받지 않았으므로, 이 태스크는 코드/연동 지점까지만 완성하고 `.env`의 `VITE_TOSS_AD_GROUP_ID`는 빈 값/플레이스홀더로 둔다.
+
+- [ ] **Step 1: 초기화 훅 작성**
+
+`src/hooks/useTossBanner.ts`:
+
+```typescript
+import { TossAds, type TossAdsAttachBannerOptions } from '@apps-in-toss/web-framework';
+import { useCallback, useEffect, useState } from 'react';
+
+export function useTossBanner() {
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    if (isInitialized) return;
+    TossAds.initialize({
+      callbacks: {
+        onInitialized: () => setIsInitialized(true),
+        onInitializationFailed: (error) => {
+          console.error('토스 광고 SDK 초기화 실패:', error);
+        },
+      },
+    });
+  }, [isInitialized]);
+
+  const attachBanner = useCallback(
+    (adGroupId: string, element: HTMLElement, options?: TossAdsAttachBannerOptions) => {
+      if (!isInitialized) return;
+      return TossAds.attachBanner(adGroupId, element, options);
+    },
+    [isInitialized],
+  );
+
+  return { isInitialized, attachBanner };
+}
+```
+
+- [ ] **Step 2: 배너 컴포넌트 작성**
+
+`src/components/BannerAd.tsx`:
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { useTossBanner } from '../hooks/useTossBanner';
+
+const AD_GROUP_ID = import.meta.env.VITE_TOSS_AD_GROUP_ID as string | undefined;
+
+export function BannerAd() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { isInitialized, attachBanner } = useTossBanner();
+
+  useEffect(() => {
+    if (!isInitialized || !containerRef.current || !AD_GROUP_ID) return;
+
+    const attached = attachBanner(AD_GROUP_ID, containerRef.current, {
+      theme: 'auto',
+      tone: 'blackAndWhite',
+      variant: 'expanded',
+      callbacks: {
+        onNoFill: () => {
+          console.info('표시할 배너 광고가 없어요.');
+        },
+        onAdFailedToRender: (payload) => {
+          console.error('배너 광고 렌더링 실패:', payload.error.message);
+        },
+      },
+    });
+
+    return () => {
+      attached?.destroy();
+    };
+  }, [isInitialized, attachBanner]);
+
+  if (!AD_GROUP_ID) return null;
+
+  return <div ref={containerRef} style={{ width: '100%', height: '96px' }} />;
+}
+```
+
+- `AD_GROUP_ID`가 없으면(아직 콘솔에서 발급 전) 아무것도 렌더링하지 않는다 — 나중에 `.env`에 실제 값만 채우면 자동으로 배너가 활성화된다.
+
+- [ ] **Step 3: 환경변수 예시 추가**
+
+`.env.example`에 추가:
+
+```
+VITE_TOSS_AD_GROUP_ID=콘솔에서_발급받은_광고그룹ID
+```
+
+- [ ] **Step 4: HomePage에 마운트**
+
+`src/pages/HomePage.tsx`의 리스트(`<List>...</List>`) 바로 아래에 `<BannerAd />`를 추가한다 (가이드라인상 "배너 광고는 스크롤 가능한 화면에" 노출해야 하므로 리스트 하단, 화면 최하단 고정은 아님).
+
+- [ ] **Step 5: 타입 체크 및 확인**
+
+```bash
+npx tsc -b --noEmit
+npm run dev
+```
+
+`AD_GROUP_ID`가 없는 상태이므로 배너 영역은 렌더링되지 않는 것이 정상이다(개발 서버 콘솔에 에러가 없는지만 확인).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/hooks/useTossBanner.ts src/components/BannerAd.tsx src/pages/HomePage.tsx .env.example
+git commit -m "feat: 토스 배너 광고 연동 (adGroupId 발급 전까지 비활성)"
+```
+
+---
+
+## Task 13: 기존 예제 코드 정리
 
 **Files:**
 - Delete: `src/hooks/useInAppAds.tsx`
