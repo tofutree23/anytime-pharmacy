@@ -16,7 +16,7 @@ type HomePageProps = {
 };
 
 export function HomePage({ onSelectPharmacy }: HomePageProps) {
-  const { state: locationState, requestAgain } = useLocation();
+  const { state: locationState } = useLocation();
   const [regionPrefix, setRegionPrefix] = useState<string | null>(null);
   // GPS 권한이 허용된 상태에서도 사용자가 헤더의 위치 필을 눌러 "지역 직접 선택" 흐름으로
   // 강제 진입할 수 있게 하는 플래그. 이게 없으면 GPS가 granted인 동안은 regionPrefix를
@@ -62,12 +62,12 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
 
   // 헤더의 위치 필을 눌렀을 때 실행된다. regionPrefix를 비우고 manualRegionOverride를
   // 켜서 GPS가 granted 상태로 남아 있더라도 RegionPicker로 강제 진입시킨다.
-  // (GPS 재요청도 함께 트리거하지만, override 플래그가 켜져 있는 한 GPS 결과와 무관하게
-  // RegionPicker가 유지되며, 사용자가 실제로 지역을 고르면 override는 해제된다.)
+  // GPS를 다시 요청하지는 않는다 — requestAgain()을 호출하면 locationState가 잠깐
+  // 'loading'으로 바뀌어 RegionPicker 대신 로딩 화면이 먼저 뜨고, GPS 응답이 느리거나
+  // 멈추면 그 상태에 갇힐 수 있다. 사용자가 실제로 지역을 고르면 override는 해제된다.
   const changeRegion = () => {
     setRegionPrefix(null);
     setManualRegionOverride(true);
-    requestAgain();
   };
 
   const selectRegion = (region: string) => {
