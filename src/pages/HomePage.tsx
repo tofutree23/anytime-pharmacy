@@ -154,9 +154,9 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             pharmacies={filteredPharmacies}
             center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
             // 지역을 선택하면 그 지역 약국 목록의 첫 번째 좌표로 지도를 이동시킨다(정렬
-            // 기준 없이 여러 개면 배열 첫 요소로). 필터로 걸러지기 전(regionResult) 값을
-            // 써서, 필터를 토글할 때마다 지도가 다시 튀지 않게 한다.
-            focusCenter={isRegionMode && regionResult.pharmacies[0] ? { lat: regionResult.pharmacies[0].lat, lng: regionResult.pharmacies[0].lng } : null}
+            // 기준 없이 여러 개면 배열 첫 요소로). 필터로 걸러진(filteredPharmacies) 값을
+            // 써서, 화면에 보이는 첫 약국으로 이동시킨다.
+            focusCenter={isRegionMode && filteredPharmacies[0] ? { lat: filteredPharmacies[0].lat, lng: filteredPharmacies[0].lng } : null}
             onSelectPharmacy={onSelectPharmacy}
             // 지역 모드에서는 지도 범위 재검색을 적용하지 않는다(좌표 기준점이 없음) —
             // null을 넘기면 PharmacyMap이 idle 추적 자체를 하지 않아 버튼도 뜨지 않고,
