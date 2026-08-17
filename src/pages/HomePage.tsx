@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
-import { useInfinitePharmacies } from '../hooks/usePharmacies';
+import { usePharmacies } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
 import { FilterBar, type FilterKey } from '../components/FilterBar';
 import { PharmacyCard } from '../components/PharmacyCard';
 import { PharmacyMap } from '../components/PharmacyMap';
 import { ComplianceNotice } from '../components/ComplianceNotice';
 import { BannerAd } from '../components/BannerAd';
-import { isOpenNow, isNightHours, isHolidayOpen } from '../domain/businessHours';
+import { matchesActiveFilters } from '../domain/filterPharmacies';
 import type { Pharmacy } from '../domain/types';
 
 type HomePageProps = {
@@ -33,30 +33,29 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       ? { type: 'nearby' as const, lat: locationState.lat, lng: locationState.lng }
       : null;
 
-  const { pharmacies, loading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useInfinitePharmacies(query ?? { type: 'region', regionPrefix: '__none__' });
+  const { pharmacies, loading, error, refetch } = usePharmacies(
+    query ?? { type: 'region', regionPrefix: '__none__' },
+  );
 
   const toggleFilter = (key: FilterKey) => {
     setActiveFilters((prev) => (prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key]));
   };
 
+  // 목록과 지도가 항상 정확히 같은 배열을 보도록, 필터링을 이 한 곳에서만 하고
+  // 그 결과(filteredPharmacies)를 목록·지도 양쪽에 그대로 내려준다.
   const filteredPharmacies = useMemo(() => {
     const now = new Date();
-    return pharmacies.filter((pharmacy) => {
-      if (activeFilters.includes('openNow') && !isOpenNow(pharmacy.dutyTime, now)) return false;
-      if (activeFilters.includes('night') && !isNightHours(pharmacy.dutyTime, now)) return false;
-      if (activeFilters.includes('holiday') && !isHolidayOpen(pharmacy.dutyTime)) return false;
-      return true;
-    });
+    return pharmacies.filter((pharmacy) => matchesActiveFilters(pharmacy, activeFilters, now));
   }, [pharmacies, activeFilters]);
 
   const isRegionMode = query?.type === 'region';
 
   // 지도는 화면에 고정하고, 약국 카드 목록만 자체 스크롤 컨테이너 안에서 스크롤되도록
-  // 한다. useWindowVirtualizer(페이지 전체 스크롤) 대신 이 스크롤 컨테이너 전용
-  // useVirtualizer를 쓴다. 필터는 서버가 모르는 클라이언트 전용 로직이라, 필터링된
-  // 개수가 적어 목록 바닥에 금방 닿으면 그만큼 자동으로 다음 raw 페이지를 더
-  // 당겨오도록 아래 effect가 처리한다.
+  // 한다. 목록은 한 번에 다 불러온 filteredPharmacies 전체에 대해 화면에 보이는
+  // 범위만 실제로 렌더링한다(무한스크롤로 데이터를 더 당겨오는 것이 아니라, 이미
+  // 가진 데이터 중 보여줄 것만 가상화). 카드 높이가 주소 줄바꿈 등으로 조금씩
+  // 달라질 수 있어 estimateSize는 대략값만 주고, 각 아이템에 measureElement ref를
+  // 달아 실제 렌더된 높이로 보정한다.
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: filteredPharmacies.length,
@@ -64,16 +63,6 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     estimateSize: () => 92,
     overscan: 6,
   });
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
-  useEffect(() => {
-    const last = virtualItems[virtualItems.length - 1];
-    if (!last) return;
-    if (last.index >= filteredPharmacies.length - 1 && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [virtualItems, filteredPharmacies.length, hasNextPage, isFetchingNextPage]);
 
   // 헤더의 위치 필을 눌렀을 때 실행된다. regionPrefix를 비우고 manualRegionOverride를
   // 켜서 GPS가 granted 상태로 남아 있더라도 RegionPicker로 강제 진입시킨다.
@@ -160,6 +149,9 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
           )}
         </div>
         <div style={{ padding: '0 16px', marginBottom: 16 }}>
+          {/* 지도와 목록이 완전히 같은 filteredPharmacies를 받는다 — 목록에만 있고
+              지도엔 안 보이는 항목이 생기지 않는다. 마커 개수 상한은 PharmacyMap
+              내부의 MAX_MARKERS가 방어적으로 처리한다. */}
           <PharmacyMap
             pharmacies={filteredPharmacies}
             center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
@@ -169,10 +161,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       </div>
 
       {/* 약국 목록만 담당하는 스크롤 컨테이너. flex:1로 지도 아래 남은 공간을 모두 차지하고,
-          그 안에서만 스크롤된다(지도는 항상 같은 자리에 고정). 무한스크롤: 화면에 보이는
-          범위의 카드만 실제로 렌더링한다. 카드 높이가 주소 줄바꿈 등으로 조금씩 달라질 수
-          있어 estimateSize는 대략값만 주고, 각 아이템에 measureElement ref를 달아 실제
-          렌더된 높이로 보정한다. */}
+          그 안에서만 스크롤된다(지도는 항상 같은 자리에 고정). */}
       <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
         <List
           style={{
@@ -183,7 +172,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             listStyle: 'none',
           }}
         >
-          {virtualItems.map((virtualItem) => {
+          {rowVirtualizer.getVirtualItems().map((virtualItem) => {
             const pharmacy = filteredPharmacies[virtualItem.index];
             return (
               <div
@@ -204,11 +193,6 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             );
           })}
         </List>
-        {isFetchingNextPage && (
-          <Paragraph typography="st13" color="#8B95A1" style={{ padding: '0 16px 16px', textAlign: 'center' }}>
-            더 불러오는 중이에요...
-          </Paragraph>
-        )}
         <BannerAd />
       </div>
     </div>
