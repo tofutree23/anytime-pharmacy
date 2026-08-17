@@ -85,6 +85,10 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
 
   return (
     <div style={{ background: '#F5F6F8', minHeight: '100%' }}>
+      {/* Top/PharmacyMap은 자체 좌우 여백이 없는 컴포넌트라, 다른 요소들(ComplianceNotice,
+          FilterBar, List)이 이미 쓰고 있는 16px 좌우 패딩을 여기서도 명시적으로 감싸준다.
+          그렇지 않으면 화면 양 끝까지 붙어버린다. */}
+      <div style={{ padding: '0 16px' }}>
       <Top
         // Top의 title/subtitleBottom은 문자열을 그대로 넘기면 TDS 기본값(둘 다 16px/regular)이
         // 적용돼 제목과 부제목의 크기 구분이 사라진다. 실제 렌더링된 CSS 변수(--tds-t-*-text-fontSize)를
@@ -108,42 +112,53 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
           </ChipItem>
         }
       />
+      </div>
       <ComplianceNotice />
       <FilterBar active={activeFilters} onToggle={toggleFilter} />
-      {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
-      {error && (
-        <div>
-          <Paragraph typography="st10">정보를 불러오지 못했어요.</Paragraph>
-          <button type="button" onClick={refetch}>
-            다시 시도
-          </button>
-        </div>
-      )}
-      {!loading && !error && filteredPharmacies.length === 0 && (
-        <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
-      )}
-      {!loading && !error && resultsTruncated && (
-        <Paragraph typography="st10">
-          {isRegionMode
-            ? '지역 내 약국이 많아 일부만 표시돼요. 필터를 사용해 좁혀보세요.'
-            : '주변 약국이 많아 가까운 순으로 일부만 표시돼요. 필터를 사용해 좁혀보세요.'}
-        </Paragraph>
-      )}
-      <PharmacyMap
-        pharmacies={filteredPharmacies}
-        center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
-        onSelectPharmacy={onSelectPharmacy}
-      />
+      {/* isNightHours()의 기본 심야 기준(2200)과 반드시 일치시킨다 — 로직과 문구가 따로 놀지
+          않도록, 여기 적힌 "22시"는 businessHours.ts의 nightStartHHmm 기본값을 그대로 옮긴 것. */}
+      <Paragraph typography="st13" color="#8B95A1" style={{ padding: '2px 16px 0' }}>
+        심야 영업 기준: 22시 이후 영업
+      </Paragraph>
+      <div style={{ padding: '0 16px' }}>
+        {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
+        {error && (
+          <div>
+            <Paragraph typography="st10">정보를 불러오지 못했어요.</Paragraph>
+            <button type="button" onClick={refetch}>
+              다시 시도
+            </button>
+          </div>
+        )}
+        {!loading && !error && filteredPharmacies.length === 0 && (
+          <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
+        )}
+        {!loading && !error && resultsTruncated && (
+          <Paragraph typography="st10">
+            {isRegionMode
+              ? '지역 내 약국이 많아 일부만 표시돼요. 필터를 사용해 좁혀보세요.'
+              : '주변 약국이 많아 가까운 순으로 일부만 표시돼요. 필터를 사용해 좁혀보세요.'}
+          </Paragraph>
+        )}
+      </div>
+      <div style={{ padding: '0 16px', marginBottom: 16 }}>
+        <PharmacyMap
+          pharmacies={filteredPharmacies}
+          center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
+          onSelectPharmacy={onSelectPharmacy}
+        />
+      </div>
       {/* 참조 디자인은 구분선이 있는 그룹 리스트가 아니라 gap 12px로 떠 있는 카드들이다.
           TDS List(ul)를 사용하되 기본 목록 스타일(margin/padding/list-style)을 리셋하고
           flex column + gap으로 카드 사이 여백을 준다. 각 카드의 구분선 제거는
-          PharmacyCard 내부 ListRow의 border="none"이 담당한다. */}
+          PharmacyCard 내부 ListRow의 border="none"이 담당한다.
+          위 지도(margin-bottom: 16)와 합쳐 지도-리스트 사이가 붙어 보이지 않도록 한다. */}
       <List
         style={{
           display: 'flex',
           flexDirection: 'column',
           gap: 12,
-          padding: '4px 16px 16px',
+          padding: '0 16px 16px',
           margin: 0,
           listStyle: 'none',
         }}

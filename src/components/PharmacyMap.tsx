@@ -141,9 +141,12 @@ export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMa
           <p>지도를 불러오는 중이에요...</p>
         </div>
       )}
+      {/* position: relative가 없으면 카카오맵이 내부적으로 그리는 타일 레이어(절대 위치)가
+          이 컨테이너가 아니라 더 상위의 포지셔닝 컨텍스트를 기준으로 배치되어, 컨테이너 박스는
+          정상인데 실제 지도만 부모의 padding/margin 밖으로 삐져나오는 문제가 있었다. */}
       <div
         ref={containerRef}
-        style={{ width: '100%', height: showMap ? MAP_HEIGHT : 0, overflow: 'hidden' }}
+        style={{ width: '100%', height: showMap ? MAP_HEIGHT : 0, overflow: 'hidden', position: 'relative' }}
       />
     </>
   );

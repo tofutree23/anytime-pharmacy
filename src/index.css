@@ -12,10 +12,19 @@
 
 body {
   margin: 0;
+  /* 실제 앱인토스 웹뷰는 항상 휴대폰 폭(대략 375~430px)이지만, 데스크톱 브라우저로 열면
+     화면 전체 폭으로 늘어나면서 텍스트 줄바꿈/여백이 부자연스러워 보인다. 넓은 화면에서는
+     휴대폰 폭으로 가운데 정렬해 실제 기기와 동일한 레이아웃으로 보이게 한다. */
+  display: flex;
+  justify-content: center;
+  background: #e5e5e5;
 }
 
 #root {
   min-height: 100svh;
+  width: 100%;
+  max-width: 430px;
+  background: #fff;
 }
 
 p {
