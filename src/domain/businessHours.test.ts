@@ -214,4 +214,58 @@ describe('every-day-crosses-midnight regression', () => {
     const now = new Date('2026-08-18T10:00:00+09:00');
     expect(isOpenNow(everydayOvernightDutyTime, now)).toBe(false);
   });
+
+  it('어제만 자정을 넘기고 오늘은 정상 영업시간인 경우: 이른 아침은 어제 shift로 영업 중이다', () => {
+    // 월 22:00-02:00 (자정 넘김), 화 09:00-18:00 (정상)
+    // 화요일 01:00 → 월요일 밤 shift가 아직 진행 중이므로 영업 중
+    const dutyTime: DutyTime = {
+      mon: { open: '2200', close: '0200' },
+      tue: { open: '0900', close: '1800' },
+      wed: null,
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+      holiday: null,
+    };
+
+    // 2026-08-18은 화요일 01:00
+    const now = new Date('2026-08-18T01:00:00+09:00');
+    expect(isOpenNow(dutyTime, now)).toBe(true);
+  });
+
+  it('어제가 자정을 넘기지 않으면 이른 아침에 false를 반환한다 (오탐 없음)', () => {
+    // 월 09:00-18:00 (정상), 화 휴무
+    // 화요일 01:00 → 월요일 shift는 이미 종료됐으므로 영업 종료
+    const dutyTime: DutyTime = {
+      mon: { open: '0900', close: '1800' },
+      tue: null,
+      wed: null,
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+      holiday: null,
+    };
+
+    const now = new Date('2026-08-18T01:00:00+09:00');
+    expect(isOpenNow(dutyTime, now)).toBe(false);
+  });
+
+  it('어제 자정 넘김 shift가 끝난 뒤 오늘 영업 시작 전이면 false를 반환한다', () => {
+    // 월 22:00-02:00, 화 09:00-18:00 → 화요일 05:00은 어느 shift에도 속하지 않음
+    const dutyTime: DutyTime = {
+      mon: { open: '2200', close: '0200' },
+      tue: { open: '0900', close: '1800' },
+      wed: null,
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+      holiday: null,
+    };
+
+    const now = new Date('2026-08-18T05:00:00+09:00');
+    expect(isOpenNow(dutyTime, now)).toBe(false);
+  });
 });

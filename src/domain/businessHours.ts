@@ -71,66 +71,48 @@ function nowMinutes(now: Date): number {
   return hours * 60 + minutes;
 }
 
-export function isOpenNow(dutyTime: DutyTime, now: Date): boolean {
-  const current = nowMinutes(now);
-  const hours = todayHours(dutyTime, now);
-
-  // Case 1: 오늘 영업시간이 정의됨
-  if (hours) {
-    const open = toMinutes(hours.open);
-    const close = toMinutes(hours.close);
-
-    if (close < open) {
-      // 오늘이 자정을 넘기는 경우 (예: 22:00 ~ 02:00)
-      // 이 shift는 오늘 "open" 시간부터 내일 "close" 시간까지
-      if (current >= open) {
-        // 현재가 오늘의 저녁/밤 시간대 (22:00 이후)
-        return true;
-      }
-
-      // current < open: 현재가 early morning (예: 01:00)
-      // 아직 오늘의 shift가 시작되지 않았지만,
-      // 어제의 shift가 오늘까지 계속되고 있을 수 있음
-      const yesterdayHour = yesterdayHours(dutyTime, now);
-      if (yesterdayHour) {
-        const yesterdayOpen = toMinutes(yesterdayHour.open);
-        const yesterdayClose = toMinutes(yesterdayHour.close);
-
-        if (yesterdayClose < yesterdayOpen) {
-          // 어제도 자정을 넘기는 경우
-          // 어제 shift: 어제 open ~ 오늘 close
-          if (current <= yesterdayClose) {
-            // 현재가 어제의 close 시간 이전 → 어제 밤 계속 영업중
-            return true;
-          }
-        }
-      }
-
-      return false;
-    }
-
-    // 오늘이 정상적인 영업시간 (같은 날짜 내)
-    return current >= open && current <= close;
-  }
-
-  // Case 2: 오늘 영업시간이 없으면, 어제 밤 자정 넘김 여부 확인
-  // 어제의 영업시간이 자정을 넘기는 경우 (close < open),
-  // 어제의 shift는 어제 "open"부터 오늘 "close"까지
-  // 현재가 오늘 early morning이고, 현재 시간이 어제의 close 시간 이전이면 영업중
+/**
+ * 어제 시작한 자정 넘김 shift가 현재까지 이어지고 있는지 확인한다.
+ * 어제 영업시간이 자정을 넘기면(close < open) 그 shift는 어제 open부터
+ * 오늘 close까지 이어지므로, 현재가 어제의 close 이전이면 영업중이다.
+ */
+function isCoveredByYesterdayOvernight(dutyTime: DutyTime, now: Date, current: number): boolean {
   const yesterdayHour = yesterdayHours(dutyTime, now);
   if (!yesterdayHour) return false;
 
   const yesterdayOpen = toMinutes(yesterdayHour.open);
   const yesterdayClose = toMinutes(yesterdayHour.close);
 
-  // 어제가 자정을 넘기는 경우만 확인
-  if (yesterdayClose < yesterdayOpen) {
-    // 어제의 shift: 어제 open ~ 오늘 close
-    // 현재 시간이 어제의 close 시간 이전이면 어제 밤부터 계속 영업중
-    return current <= yesterdayClose;
+  // 어제가 자정을 넘기지 않으면 오늘까지 이어질 수 없다.
+  if (yesterdayClose >= yesterdayOpen) return false;
+
+  return current <= yesterdayClose;
+}
+
+export function isOpenNow(dutyTime: DutyTime, now: Date): boolean {
+  const current = nowMinutes(now);
+  const hours = todayHours(dutyTime, now);
+
+  // 1) 오늘 자체 영업시간으로 커버되는지 먼저 확인한다.
+  if (hours) {
+    const open = toMinutes(hours.open);
+    const close = toMinutes(hours.close);
+
+    if (close < open) {
+      // 오늘이 자정을 넘기는 경우 (예: 22:00 ~ 02:00).
+      // 이 shift는 오늘 open부터 내일 close까지이므로 open 이후면 영업중.
+      if (current >= open) return true;
+    } else if (current >= open && current <= close) {
+      // 같은 날짜 안에서 끝나는 정상 영업시간
+      return true;
+    }
   }
 
-  return false;
+  // 2) 오늘 영업시간이 없거나 아직 시작 전(또는 이미 종료)이라면,
+  //    어제 시작한 자정 넘김 shift가 아직 이어지는지 확인한다.
+  //    오늘 영업시간이 자정을 넘기는지 여부와 무관하게 동일하게 적용한다.
+  //    (예: 월 22:00~02:00, 화 09:00~18:00 → 화요일 01:00은 영업중)
+  return isCoveredByYesterdayOvernight(dutyTime, now, current);
 }
 
 export function isNightHours(dutyTime: DutyTime, now: Date, nightStartHHmm = '2200'): boolean {
