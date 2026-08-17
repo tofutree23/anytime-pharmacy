@@ -1,25 +1,24 @@
-import { useState } from "react";
-// create-ait-app:sample-imports:start
-import { InAppAdsPage } from "./pages/InAppAdsPage";
-// create-ait-app:sample-imports:end
+import { useState } from 'react';
+import { HomePage } from './pages/HomePage';
+import { PharmacyDetailPage } from './pages/PharmacyDetailPage';
+import type { Pharmacy } from './domain/types';
 
 function App() {
-  const [page, setPage] = useState<string | null>(null);
+  const [selectedPharmacy, setSelectedPharmacy] = useState<Pharmacy | null>(null);
 
-  // create-ait-app:sample-routes:start
-  if (page === "iaa") return <InAppAdsPage onBack={() => setPage(null)} />;
-  // create-ait-app:sample-routes:end
-
+  // HomePage를 조건부로 언마운트하면(상세 화면으로 이동 시) 다시 돌아왔을 때
+  // regionPrefix/activeFilters 같은 내부 state가 전부 초기화된다. 그래서 HomePage는
+  // 항상 마운트된 상태를 유지하고, 상세 화면일 때만 화면에서 감춘다(display: none).
+  // 상세 화면은 HomePage 위에 겹쳐서 그린다.
   return (
-    <main>
-      <h1>Apps in Toss</h1>
-      <p>원하는 기능을 샌드박스 앱이나 토스 앱에서 확인해 보세요.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* create-ait-app:sample-buttons:start */}
-        <button type="button" onClick={() => setPage("iaa")}>인앱 광고 테스트하기</button>
-        {/* create-ait-app:sample-buttons:end */}
+    <>
+      <div style={{ display: selectedPharmacy ? 'none' : 'block' }}>
+        <HomePage onSelectPharmacy={setSelectedPharmacy} />
       </div>
-    </main>
+      {selectedPharmacy && (
+        <PharmacyDetailPage pharmacy={selectedPharmacy} onBack={() => setSelectedPharmacy(null)} />
+      )}
+    </>
   );
 }
 

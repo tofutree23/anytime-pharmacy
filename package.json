@@ -8,14 +8,21 @@
     "build": "tsc -b && vite build && ait build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy": "ait deploy"
+    "deploy": "ait deploy",
+    "test": "vitest run",
+    "test:functions": "deno test supabase/functions/sync-pharmacies/parse.test.ts"
   },
   "dependencies": {
+    "@apps-in-toss/web-framework": "latest",
+    "@emotion/react": "^11.14.0",
+    "@supabase/supabase-js": "^2.112.3",
+    "@toss/tds-mobile": "^2.5.1",
+    "@toss/tds-mobile-ait": "^2.5.1",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "@apps-in-toss/web-framework": "latest"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@apps-in-toss/devtools": "^3.0.3",
     "@babel/core": "^7.29.7",
     "@rolldown/plugin-babel": "^0.2.3",
     "@types/babel__core": "^7.20.5",
@@ -27,6 +34,6 @@
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
-    "@apps-in-toss/devtools": "^3.0.3"
+    "vitest": "^4.1.10"
   }
 }
