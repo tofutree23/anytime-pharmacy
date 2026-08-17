@@ -1521,7 +1521,173 @@ git commit -m "feat: 토스 배너 광고 연동 (adGroupId 발급 전까지 비
 
 ---
 
-## Task 13: 기존 예제 코드 정리
+## Task 13: 지도 뷰 (카카오맵)
+
+**Files:**
+- Create: `src/hooks/useKakaoMap.ts`
+- Create: `src/components/PharmacyMap.tsx`
+- Modify: `src/pages/HomePage.tsx` (목록/지도 토글)
+- Modify: `.env.example` (`VITE_KAKAO_MAP_APP_KEY` 추가)
+- Modify: `index.html` 또는 스크립트 동적 로드 방식 결정은 구현자가 판단
+
+**Interfaces:**
+- Consumes: `Pharmacy` type (Task 5), `filteredPharmacies` (Task 10의 `HomePage` 필터링 결과)
+- Produces: `function PharmacyMap(props: { pharmacies: Pharmacy[]; center: { lat: number; lng: number } | null; onSelectPharmacy: (pharmacy: Pharmacy) => void }): JSX.Element`
+
+**배경**: 카카오맵 JavaScript SDK는 서비스키가 아니라 도메인 제한으로 보호되는 공개 키라 프론트엔드에 직접 노출해도 된다 (Supabase publishable key와 같은 성격 — Edge Function 프록시 불필요). 실제 앱키는 발급받음. 카카오 개발자센터의 "내 애플리케이션 → 플랫폼 → Web" 에 개발 서버 도메인(`http://localhost:5173`)과 배포 도메인을 등록해야 지도가 뜬다 — 이건 사용자가 콘솔에서 직접 해야 하는 부분이니 구현자는 코드만 완성한다.
+
+**컴플라이언스**: 지도 마커는 모든 약국에 동일한 아이콘/스타일을 사용한다. 순위, 강조, 크기 차등 없음 — Global Constraints의 "동일 기준 노출" 원칙을 지도에도 그대로 적용한다.
+
+- [ ] **Step 1: 카카오맵 SDK 로드 훅**
+
+`src/hooks/useKakaoMap.ts`:
+
+```typescript
+import { useEffect, useState } from 'react';
+
+declare global {
+  interface Window {
+    kakao: any;
+  }
+}
+
+const APP_KEY = import.meta.env.VITE_KAKAO_MAP_APP_KEY as string | undefined;
+
+let loadPromise: Promise<void> | null = null;
+
+function loadKakaoMapScript(): Promise<void> {
+  if (loadPromise) return loadPromise;
+
+  loadPromise = new Promise((resolve, reject) => {
+    if (window.kakao?.maps) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${APP_KEY}&autoload=false`;
+    script.onload = () => {
+      window.kakao.maps.load(() => resolve());
+    };
+    script.onerror = () => reject(new Error('카카오맵 SDK 로드 실패'));
+    document.head.appendChild(script);
+  });
+
+  return loadPromise;
+}
+
+export function useKakaoMap() {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!APP_KEY) {
+      setError('지도를 사용할 수 없어요.');
+      return;
+    }
+    loadKakaoMapScript()
+      .then(() => setIsLoaded(true))
+      .catch(() => setError('지도를 사용할 수 없어요.'));
+  }, []);
+
+  return { isLoaded, error, isConfigured: Boolean(APP_KEY) };
+}
+```
+
+- [ ] **Step 2: 지도 컴포넌트**
+
+`src/components/PharmacyMap.tsx`:
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { useKakaoMap } from '../hooks/useKakaoMap';
+import type { Pharmacy } from '../domain/types';
+
+type PharmacyMapProps = {
+  pharmacies: Pharmacy[];
+  center: { lat: number; lng: number } | null;
+  onSelectPharmacy: (pharmacy: Pharmacy) => void;
+};
+
+export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMapProps) {
+  const { isLoaded, error } = useKakaoMap();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isLoaded || !containerRef.current) return;
+
+    const kakao = window.kakao;
+    const fallbackCenter = pharmacies[0]
+      ? { lat: pharmacies[0].lat, lng: pharmacies[0].lng }
+      : { lat: 37.5665, lng: 126.978 }; // 서울시청 기본값
+    const mapCenter = center ?? fallbackCenter;
+
+    const map = new kakao.maps.Map(containerRef.current, {
+      center: new kakao.maps.LatLng(mapCenter.lat, mapCenter.lng),
+      level: 5,
+    });
+
+    // 모든 약국을 동일한 마커로 표시 — 강조/순위 없음
+    const markers = pharmacies.map((pharmacy) => {
+      const marker = new kakao.maps.Marker({
+        position: new kakao.maps.LatLng(pharmacy.lat, pharmacy.lng),
+        map,
+      });
+      kakao.maps.event.addListener(marker, 'click', () => onSelectPharmacy(pharmacy));
+      return marker;
+    });
+
+    return () => {
+      markers.forEach((marker) => marker.setMap(null));
+    };
+  }, [isLoaded, pharmacies, center, onSelectPharmacy]);
+
+  if (error) {
+    return <p>{error}</p>;
+  }
+
+  if (!isLoaded) {
+    return <p>지도를 불러오는 중이에요...</p>;
+  }
+
+  return <div ref={containerRef} style={{ width: '100%', height: '400px' }} />;
+}
+```
+
+- [ ] **Step 3: 환경변수 예시 추가**
+
+`.env.example`에 추가:
+
+```
+VITE_KAKAO_MAP_APP_KEY=카카오_디벨로퍼스에서_발급받은_JavaScript_키
+```
+
+- [ ] **Step 4: HomePage에 목록/지도 토글 추가**
+
+`src/pages/HomePage.tsx`를 수정해 `FilterBar` 아래, 리스트/지도 영역 위에 TDS `Tab`(또는 동등한 토글 컴포넌트, Step 5에서 실제 API 확인 후 결정)으로 "목록"/"지도" 전환을 추가한다. 선택된 뷰에 따라 기존 `<List>{filteredPharmacies...}</List>` 대신 `<PharmacyMap pharmacies={filteredPharmacies} center={locationState.status === 'granted' ? {lat: locationState.lat, lng: locationState.lng} : null} onSelectPharmacy={onSelectPharmacy} />`를 렌더링한다. 배너 광고(`<BannerAd />`)는 두 뷰 모두 하단에 유지한다.
+
+- [ ] **Step 5: TDS Tab API 확인**
+
+`node_modules/@toss/tds-mobile/dist/esm/index.d.ts`에서 `Tab`의 실제 props를 확인하고 Step 4의 토글 구현에 반영한다 (이전 태스크들에서 반복적으로 brief의 추측 API가 틀렸던 전례를 따른다).
+
+- [ ] **Step 6: 타입 체크 및 확인**
+
+```bash
+npx tsc -b --noEmit
+npm run dev
+```
+
+카카오 개발자센터에 `http://localhost:5173` 도메인이 등록돼 있어야 지도가 정상적으로 뜬다(사용자가 사전에 등록 완료). 목록↔지도 전환이 되는지, 지도에 마커가 찍히는지, 마커 클릭 시 상세 화면으로 이동하는지 확인한다.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/hooks/useKakaoMap.ts src/components/PharmacyMap.tsx src/pages/HomePage.tsx .env.example
+git commit -m "feat: 카카오맵 기반 지도 뷰 추가 (목록/지도 토글)"
+```
+
+---
+
+## Task 14: 기존 예제 코드 정리
 
 **Files:**
 - Delete: `src/hooks/useInAppAds.tsx`
