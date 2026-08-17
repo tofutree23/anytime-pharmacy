@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
-import { usePharmacies, REGION_QUERY_LIMIT, NEARBY_QUERY_LIMIT } from '../hooks/usePharmacies';
+import { useInfinitePharmacies } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
 import { FilterBar, type FilterKey } from '../components/FilterBar';
 import { PharmacyCard } from '../components/PharmacyCard';
@@ -32,9 +33,8 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       ? { type: 'nearby' as const, lat: locationState.lat, lng: locationState.lng }
       : null;
 
-  const { pharmacies, loading, error, refetch } = usePharmacies(
-    query ?? { type: 'region', regionPrefix: '__none__' },
-  );
+  const { pharmacies, loading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfinitePharmacies(query ?? { type: 'region', regionPrefix: '__none__' });
 
   const toggleFilter = (key: FilterKey) => {
     setActiveFilters((prev) => (prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key]));
@@ -50,15 +50,30 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     });
   }, [pharmacies, activeFilters]);
 
-  // 지역/주변(GPS) 조회 모두 각자의 상한(REGION_QUERY_LIMIT / NEARBY_QUERY_LIMIT)까지만
-  // 가져오므로, 상한에 걸린 경우 결과가 잘렸다는 사실을 사용자에게 알려준다.
-  // nearby_pharmacies는 이미 거리순으로 정렬되어 오므로 상한을 적용해도 "가까운 순"은
-  // 그대로 유지된다.
-  const resultsTruncated =
-    (query?.type === 'region' && pharmacies.length >= REGION_QUERY_LIMIT) ||
-    (query?.type === 'nearby' && pharmacies.length >= NEARBY_QUERY_LIMIT);
-
   const isRegionMode = query?.type === 'region';
+
+  // 지도는 화면에 고정하고, 약국 카드 목록만 자체 스크롤 컨테이너 안에서 스크롤되도록
+  // 한다. useWindowVirtualizer(페이지 전체 스크롤) 대신 이 스크롤 컨테이너 전용
+  // useVirtualizer를 쓴다. 필터는 서버가 모르는 클라이언트 전용 로직이라, 필터링된
+  // 개수가 적어 목록 바닥에 금방 닿으면 그만큼 자동으로 다음 raw 페이지를 더
+  // 당겨오도록 아래 effect가 처리한다.
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredPharmacies.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 92,
+    overscan: 6,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  useEffect(() => {
+    const last = virtualItems[virtualItems.length - 1];
+    if (!last) return;
+    if (last.index >= filteredPharmacies.length - 1 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [virtualItems, filteredPharmacies.length, hasNextPage, isFetchingNextPage]);
 
   // 헤더의 위치 필을 눌렀을 때 실행된다. regionPrefix를 비우고 manualRegionOverride를
   // 켜서 GPS가 granted 상태로 남아 있더라도 RegionPicker로 강제 진입시킨다.
@@ -84,90 +99,118 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   }
 
   return (
-    <div style={{ background: '#F5F6F8', minHeight: '100%' }}>
-      {/* Top/PharmacyMap은 자체 좌우 여백이 없는 컴포넌트라, 다른 요소들(ComplianceNotice,
-          FilterBar, List)이 이미 쓰고 있는 16px 좌우 패딩을 여기서도 명시적으로 감싸준다.
-          그렇지 않으면 화면 양 끝까지 붙어버린다. */}
-      <div style={{ padding: '0 16px' }}>
-      <Top
-        // Top의 title/subtitleBottom은 문자열을 그대로 넘기면 TDS 기본값(둘 다 16px/regular)이
-        // 적용돼 제목과 부제목의 크기 구분이 사라진다. 실제 렌더링된 CSS 변수(--tds-t-*-text-fontSize)를
-        // 확인해 t4=20px, st11=14px로 명시적인 위계를 준다.
-        title={
-          <Paragraph typography="t4" fontWeight="bold">
-            언제나 약국
-          </Paragraph>
-        }
-        subtitleBottom={
-          <Paragraph typography="st11" color="#4E5968">
-            지금 문 연 약국을 찾아보세요.
-          </Paragraph>
-        }
-        // 헤더 우측에는 항상 현재 위치/지역을 보여주는 필/칩을 둔다. 지역 모드에서는
-        // 선택된 지역명을, GPS 모드에서는 역지오코딩 없이 일반화된 라벨을 보여준다.
-        // 클릭하면 (모드와 무관하게) 지역을 직접 고를 수 있게 한다.
-        right={
-          <ChipItem onClick={changeRegion} right={<ChipItemRightIcon iconType="dropdown" />}>
-            {isRegionMode ? regionPrefix : '내 위치 근처'}
-          </ChipItem>
-        }
-      />
+    <div
+      style={{
+        background: '#F5F6F8',
+        height: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      {/* 상단 고정 영역: 헤더/고지문구/필터/지도. 여기는 스크롤되지 않는다. */}
+      <div style={{ flexShrink: 0 }}>
+        {/* Top/PharmacyMap은 자체 좌우 여백이 없는 컴포넌트라, 다른 요소들(ComplianceNotice,
+            FilterBar, List)이 이미 쓰고 있는 16px 좌우 패딩을 여기서도 명시적으로 감싸준다.
+            그렇지 않으면 화면 양 끝까지 붙어버린다. */}
+        <div style={{ padding: '0 16px' }}>
+          <Top
+            // Top의 title/subtitleBottom은 문자열을 그대로 넘기면 TDS 기본값(둘 다 16px/regular)이
+            // 적용돼 제목과 부제목의 크기 구분이 사라진다. 실제 렌더링된 CSS 변수(--tds-t-*-text-fontSize)를
+            // 확인해 t4=20px, st11=14px로 명시적인 위계를 준다.
+            title={
+              <Paragraph typography="t4" fontWeight="bold">
+                언제나 약국
+              </Paragraph>
+            }
+            subtitleBottom={
+              <Paragraph typography="st11" color="#4E5968">
+                지금 문 연 약국을 찾아보세요.
+              </Paragraph>
+            }
+            // 헤더 우측에는 항상 현재 위치/지역을 보여주는 필/칩을 둔다. 지역 모드에서는
+            // 선택된 지역명을, GPS 모드에서는 역지오코딩 없이 일반화된 라벨을 보여준다.
+            // 클릭하면 (모드와 무관하게) 지역을 직접 고를 수 있게 한다.
+            right={
+              <ChipItem onClick={changeRegion} right={<ChipItemRightIcon iconType="dropdown" />}>
+                {isRegionMode ? regionPrefix : '내 위치 근처'}
+              </ChipItem>
+            }
+          />
+        </div>
+        <ComplianceNotice />
+        <FilterBar active={activeFilters} onToggle={toggleFilter} />
+        {/* isNightHours()의 기본 심야 기준(2200)과 반드시 일치시킨다 — 로직과 문구가 따로 놀지
+            않도록, 여기 적힌 "22시"는 businessHours.ts의 nightStartHHmm 기본값을 그대로 옮긴 것. */}
+        <Paragraph typography="st13" color="#8B95A1" style={{ padding: '2px 16px 0' }}>
+          심야 영업 기준: 22시 이후 영업
+        </Paragraph>
+        <div style={{ padding: '0 16px' }}>
+          {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
+          {error && (
+            <div>
+              <Paragraph typography="st10">정보를 불러오지 못했어요.</Paragraph>
+              <button type="button" onClick={() => refetch()}>
+                다시 시도
+              </button>
+            </div>
+          )}
+          {!loading && !error && filteredPharmacies.length === 0 && (
+            <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
+          )}
+        </div>
+        <div style={{ padding: '0 16px', marginBottom: 16 }}>
+          <PharmacyMap
+            pharmacies={filteredPharmacies}
+            center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
+            onSelectPharmacy={onSelectPharmacy}
+          />
+        </div>
       </div>
-      <ComplianceNotice />
-      <FilterBar active={activeFilters} onToggle={toggleFilter} />
-      {/* isNightHours()의 기본 심야 기준(2200)과 반드시 일치시킨다 — 로직과 문구가 따로 놀지
-          않도록, 여기 적힌 "22시"는 businessHours.ts의 nightStartHHmm 기본값을 그대로 옮긴 것. */}
-      <Paragraph typography="st13" color="#8B95A1" style={{ padding: '2px 16px 0' }}>
-        심야 영업 기준: 22시 이후 영업
-      </Paragraph>
-      <div style={{ padding: '0 16px' }}>
-        {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
-        {error && (
-          <div>
-            <Paragraph typography="st10">정보를 불러오지 못했어요.</Paragraph>
-            <button type="button" onClick={refetch}>
-              다시 시도
-            </button>
-          </div>
-        )}
-        {!loading && !error && filteredPharmacies.length === 0 && (
-          <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
-        )}
-        {!loading && !error && resultsTruncated && (
-          <Paragraph typography="st10">
-            {isRegionMode
-              ? '지역 내 약국이 많아 일부만 표시돼요. 필터를 사용해 좁혀보세요.'
-              : '주변 약국이 많아 가까운 순으로 일부만 표시돼요. 필터를 사용해 좁혀보세요.'}
+
+      {/* 약국 목록만 담당하는 스크롤 컨테이너. flex:1로 지도 아래 남은 공간을 모두 차지하고,
+          그 안에서만 스크롤된다(지도는 항상 같은 자리에 고정). 무한스크롤: 화면에 보이는
+          범위의 카드만 실제로 렌더링한다. 카드 높이가 주소 줄바꿈 등으로 조금씩 달라질 수
+          있어 estimateSize는 대략값만 주고, 각 아이템에 measureElement ref를 달아 실제
+          렌더된 높이로 보정한다. */}
+      <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
+        <List
+          style={{
+            position: 'relative',
+            height: rowVirtualizer.getTotalSize(),
+            margin: 0,
+            padding: 0,
+            listStyle: 'none',
+          }}
+        >
+          {virtualItems.map((virtualItem) => {
+            const pharmacy = filteredPharmacies[virtualItem.index];
+            return (
+              <div
+                key={pharmacy.id}
+                ref={rowVirtualizer.measureElement}
+                data-index={virtualItem.index}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 16,
+                  right: 16,
+                  transform: `translateY(${virtualItem.start}px)`,
+                  paddingBottom: 12,
+                }}
+              >
+                <PharmacyCard pharmacy={pharmacy} onClick={onSelectPharmacy} />
+              </div>
+            );
+          })}
+        </List>
+        {isFetchingNextPage && (
+          <Paragraph typography="st13" color="#8B95A1" style={{ padding: '0 16px 16px', textAlign: 'center' }}>
+            더 불러오는 중이에요...
           </Paragraph>
         )}
+        <BannerAd />
       </div>
-      <div style={{ padding: '0 16px', marginBottom: 16 }}>
-        <PharmacyMap
-          pharmacies={filteredPharmacies}
-          center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
-          onSelectPharmacy={onSelectPharmacy}
-        />
-      </div>
-      {/* 참조 디자인은 구분선이 있는 그룹 리스트가 아니라 gap 12px로 떠 있는 카드들이다.
-          TDS List(ul)를 사용하되 기본 목록 스타일(margin/padding/list-style)을 리셋하고
-          flex column + gap으로 카드 사이 여백을 준다. 각 카드의 구분선 제거는
-          PharmacyCard 내부 ListRow의 border="none"이 담당한다.
-          위 지도(margin-bottom: 16)와 합쳐 지도-리스트 사이가 붙어 보이지 않도록 한다. */}
-      <List
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          padding: '0 16px 16px',
-          margin: 0,
-          listStyle: 'none',
-        }}
-      >
-        {filteredPharmacies.map((pharmacy) => (
-          <PharmacyCard key={pharmacy.id} pharmacy={pharmacy} onClick={onSelectPharmacy} />
-        ))}
-      </List>
-      <BannerAd />
     </div>
   );
 }

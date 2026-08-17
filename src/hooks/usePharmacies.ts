@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import type { Pharmacy } from '../domain/types';
 
@@ -31,92 +31,64 @@ function toPharmacy(row: PharmacyRow): Pharmacy {
   };
 }
 
-// 지역 조회는 서울/경기처럼 수천 건이 나오는 지역이 있어 상한을 둔다.
-// 목록(가상화 없음)과 지도 마커가 모두 행 수에 비례해 무거워지므로 렌더 성능을 위한 상한이다.
-export const REGION_QUERY_LIMIT = 200;
-
-// GPS 주변 조회도 도심 밀집 지역에서는 5km 반경 안에 수백 건이 나올 수 있다.
-// nearby_pharmacies는 이미 거리순(가까운 순)으로 정렬해서 내려주므로, 상한을 걸어도
-// "가까운 순" 정렬은 그대로 유지된 채 먼 결과만 잘려나간다. 지역 조회 상한과 동일하게 맞춘다.
-export const NEARBY_QUERY_LIMIT = 200;
-
 export type PharmacyQuery =
   | { type: 'nearby'; lat: number; lng: number }
   | { type: 'region'; regionPrefix: string };
 
-export function usePharmacies(query: PharmacyQuery) {
-  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestIdRef = useRef(0);
+// 무한스크롤 한 페이지당 개수. 필터(지금영업중/심야/공휴일)는 클라이언트에서 이 페이지들을
+// 누적한 결과 위에 적용한다 — 필터링된 개수가 적어 화면이 금방 바닥나면, 그만큼 다음
+// 페이지를 더 당겨오면 되므로 서버 쿼리 자체는 필터를 몰라도 된다.
+const PAGE_SIZE = 20;
 
-  const fetchPharmacies = useCallback(async () => {
-    const requestId = ++requestIdRef.current;
-    setLoading(true);
-    setError(null);
+async function fetchPage(query: PharmacyQuery, pageParam: number): Promise<PharmacyRow[]> {
+  if (query.type === 'nearby') {
+    const { data, error } = await supabase.rpc('nearby_pharmacies', {
+      target_lat: query.lat,
+      target_lng: query.lng,
+      max_distance_meters: 5000,
+      page_offset: pageParam,
+      page_size: PAGE_SIZE,
+    });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as PharmacyRow[];
+  }
 
-    // 네트워크 예외도 재시도 대상이 되도록 throw를 message로 변환한다.
-    const runQuery = async (): Promise<{ rows: PharmacyRow[] | null; message: string | null }> => {
-      try {
-        return await runQueryOnce();
-      } catch (err) {
-        return {
-          rows: null,
-          message: err instanceof Error ? err.message : '알 수 없는 오류가 발생했어요.',
-        };
-      }
-    };
+  const { data, error } = await supabase
+    .from('pharmacies')
+    .select('*')
+    .ilike('address', `${query.regionPrefix}%`)
+    .order('name', { ascending: true })
+    .range(pageParam, pageParam + PAGE_SIZE - 1);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PharmacyRow[];
+}
 
-    const runQueryOnce = async (): Promise<{ rows: PharmacyRow[] | null; message: string | null }> => {
-      if (query.type === 'nearby') {
-        const { data, error: rpcError } = await supabase
-          .rpc('nearby_pharmacies', {
-            target_lat: query.lat,
-            target_lng: query.lng,
-            max_distance_meters: 5000,
-          })
-          .limit(NEARBY_QUERY_LIMIT);
-        return { rows: (data ?? []) as PharmacyRow[], message: rpcError?.message ?? null };
-      }
-      const { data, error: queryError } = await supabase
-        .from('pharmacies')
-        .select('*')
-        .ilike('address', `${query.regionPrefix}%`)
-        .order('name', { ascending: true })
-        .limit(REGION_QUERY_LIMIT);
-      return { rows: (data ?? []) as PharmacyRow[], message: queryError?.message ?? null };
-    };
+export function useInfinitePharmacies(query: PharmacyQuery) {
+  const queryKey =
+    query.type === 'nearby'
+      ? (['pharmacies', 'nearby', query.lat, query.lng] as const)
+      : (['pharmacies', 'region', query.regionPrefix] as const);
 
-    try {
-      // 스펙상 실패 시 1회 자동 재시도한다. 두 번 모두 실패해야 에러 상태로 넘어가고,
-      // 그 뒤에는 기존 "다시 시도" 버튼이 수동 재시도 수단으로 남는다.
-      let result = await runQuery();
-      if (result.message !== null) {
-        if (requestIdRef.current !== requestId) return;
-        result = await runQuery();
-      }
+  const result = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) => fetchPage(query, pageParam),
+    initialPageParam: 0,
+    // 마지막 페이지가 PAGE_SIZE보다 적게 왔다면 더 가져올 게 없다는 뜻이다.
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < PAGE_SIZE ? undefined : allPages.length * PAGE_SIZE,
+    // 지역 목록이 아주 많이 바뀌는 데이터는 아니라 5분 정도는 재요청 없이 캐시를 신뢰한다.
+    staleTime: 5 * 60 * 1000,
+  });
 
-      if (requestIdRef.current !== requestId) return;
-      if (result.message !== null) {
-        setError(result.message);
-        setPharmacies([]);
-      } else {
-        setPharmacies((result.rows ?? []).map(toPharmacy));
-      }
-    } catch (err) {
-      if (requestIdRef.current !== requestId) return;
-      setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했어요.');
-      setPharmacies([]);
-    } finally {
-      if (requestIdRef.current === requestId) {
-        setLoading(false);
-      }
-    }
-  }, [query.type, query.type === 'nearby' ? query.lat : query.regionPrefix, query.type === 'nearby' ? query.lng : null]);
+  const pharmacies = (result.data?.pages.flat() ?? []).map(toPharmacy);
 
-  useEffect(() => {
-    fetchPharmacies();
-  }, [fetchPharmacies]);
-
-  return { pharmacies, loading, error, refetch: fetchPharmacies };
+  return {
+    pharmacies,
+    loading: result.isLoading,
+    error: result.error?.message ?? null,
+    refetch: result.refetch,
+    fetchNextPage: result.fetchNextPage,
+    hasNextPage: result.hasNextPage,
+    isFetchingNextPage: result.isFetchingNextPage,
+  };
 }
