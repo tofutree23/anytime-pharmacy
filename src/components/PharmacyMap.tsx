@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useKakaoMap } from '../hooks/useKakaoMap';
 import type { Pharmacy } from '../domain/types';
+import type { MapBounds } from '../hooks/usePharmaciesInBounds';
 
 type PharmacyMapProps = {
   pharmacies: Pharmacy[];
   center: { lat: number; lng: number } | null;
   onSelectPharmacy: (pharmacy: Pharmacy) => void;
+  // 지도가 움직일 때마다 자동으로 재조회하지 않고, 사용자가 "이 지역 재검색"
+  // 버튼을 눌렀을 때만(그리고 최초 1회는 자동으로) 호출된다. null이면(지역 선택
+  // 모드처럼 좌표 기준점이 없는 경우) idle 추적 자체를 하지 않아 버튼도 뜨지 않는다.
+  onSearchThisArea: ((bounds: MapBounds) => void) | null;
 };
 
 // 375px 폭 기준 참조 디자인은 지도 높이 220px(뷰포트의 약 25~30%)를 사용한다.
@@ -16,27 +21,42 @@ const MAP_HEIGHT = '240px';
 // 호출자가 상한 없는 배열을 넘기더라도 안전하도록 방어적으로 자른다.
 const MAX_MARKERS = 200;
 
-type KakaoMap = { relayout: () => void };
+type KakaoLatLng = { getLat: () => number; getLng: () => number };
+type KakaoBounds = { getSouthWest: () => KakaoLatLng; getNorthEast: () => KakaoLatLng };
+type KakaoMap = { relayout: () => void; getBounds: () => KakaoBounds };
 type KakaoMarker = { setMap: (map: unknown) => void };
 
-export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMapProps) {
+function toMapBounds(bounds: KakaoBounds): MapBounds {
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  return { swLat: sw.getLat(), swLng: sw.getLng(), neLat: ne.getLat(), neLng: ne.getLng() };
+}
+
+export function PharmacyMap({ pharmacies, center, onSelectPharmacy, onSearchThisArea }: PharmacyMapProps) {
   const { isLoaded, error: loadError } = useKakaoMap();
   const [initError, setInitError] = useState<string | null>(null);
+  const [showSearchButton, setShowSearchButton] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMap | null>(null);
   const markersRef = useRef<KakaoMarker[]>([]);
+  const pendingBoundsRef = useRef<MapBounds | null>(null);
+  // 최초 idle에서는 버튼 없이 바로 한 번 검색을 실행해 초기 데이터를 채운다.
+  // 이후부터는 지도를 움직여도 버튼을 눌러야만 재검색된다.
+  const hasAutoSearchedRef = useRef(false);
 
   // 최초 지도 생성 시점의 중심 좌표로만 사용한다. 이후 center가 바뀌어도
   // 사용자가 이동/확대한 지도를 다시 중앙으로 되돌리지 않는다.
   const centerRef = useRef(center);
   const pharmaciesRef = useRef(pharmacies);
+  const onSearchThisAreaRef = useRef(onSearchThisArea);
 
   // 렌더 중 ref를 쓰지 않도록, 최신 값 동기화는 지도 생성 effect보다 먼저 선언된
   // 이 effect에서 처리한다(선언 순서대로 실행된다).
   useEffect(() => {
     centerRef.current = center;
     pharmaciesRef.current = pharmacies;
-  }, [center, pharmacies]);
+    onSearchThisAreaRef.current = onSearchThisArea;
+  }, [center, pharmacies, onSearchThisArea]);
 
   // 지도 인스턴스는 단 한 번만 만들고 ref에 보관한다. 필터 토글로 pharmacies가
   // 바뀔 때마다 재생성하면 사용자의 pan/zoom 상태가 초기화된다.
@@ -59,6 +79,21 @@ export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMa
 
       mapRef.current = map;
       setInitError(null);
+
+      // 지도가 움직임을 멈출 때마다(드래그/줌 종료) 호출된다. 최초 1회는 자동으로
+      // onSearchThisArea를 실행해 초기 데이터를 채우고, 이후에는 버튼을 눌러야만
+      // 재검색되도록 pendingBoundsRef에 보관만 해둔다(과도한 조회 방지).
+      kakao.maps.event.addListener(map, 'idle', () => {
+        if (!onSearchThisAreaRef.current) return;
+        const bounds = toMapBounds(map.getBounds());
+        if (!hasAutoSearchedRef.current) {
+          hasAutoSearchedRef.current = true;
+          onSearchThisAreaRef.current(bounds);
+          return;
+        }
+        pendingBoundsRef.current = bounds;
+        setShowSearchButton(true);
+      });
 
       // initError에서 복구되는 경우, 이 시점의 컨테이너는 아직 이전 렌더(height: 0)의
       // DOM 크기를 갖고 있을 수 있다(setInitError(null)의 리렌더가 아직 커밋되기 전).
@@ -133,6 +168,12 @@ export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMa
   // `if (!containerRef.current) return;`에서 즉시 멈춰버려 영영 복구되지 않는다.
   const showMap = isLoaded && !initError;
 
+  const handleSearchThisArea = () => {
+    if (!pendingBoundsRef.current || !onSearchThisAreaRef.current) return;
+    onSearchThisAreaRef.current(pendingBoundsRef.current);
+    setShowSearchButton(false);
+  };
+
   return (
     <>
       {initError && <p style={{ margin: '8px 16px', fontSize: 13, color: '#888' }}>{initError}</p>}
@@ -145,9 +186,41 @@ export function PharmacyMap({ pharmacies, center, onSelectPharmacy }: PharmacyMa
           이 컨테이너가 아니라 더 상위의 포지셔닝 컨텍스트를 기준으로 배치되어, 컨테이너 박스는
           정상인데 실제 지도만 부모의 padding/margin 밖으로 삐져나오는 문제가 있었다. */}
       <div
-        ref={containerRef}
-        style={{ width: '100%', height: showMap ? MAP_HEIGHT : 0, overflow: 'hidden', position: 'relative' }}
-      />
+        style={{
+          width: '100%',
+          height: showMap ? MAP_HEIGHT : 0,
+          borderRadius: showMap ? 12 : 0,
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }} />
+        {showMap && showSearchButton && (
+          <button
+            type="button"
+            onClick={handleSearchThisArea}
+            style={{
+              position: 'absolute',
+              bottom: 12,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              // 카카오맵 마커 레이어가 자체 z-index를 갖고 있어(기본값 z-index:auto는
+              // 그 아래에 깔린다), 명시적으로 더 높은 값을 줘야 버튼이 지도 위에 보인다.
+              zIndex: 10,
+              padding: '8px 16px',
+              borderRadius: 20,
+              border: 'none',
+              background: '#3182F6',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            }}
+          >
+            이 지역 재검색
+          </button>
+        )}
+      </div>
     </>
   );
 }

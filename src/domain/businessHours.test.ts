@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isOpenNow, isNightHours, isHolidayOpen } from './businessHours';
+import { isOpenNow, isNightHours, is24Hours, isHolidayOpen } from './businessHours';
 import type { DutyTime } from './types';
 
 const baseDutyTime: DutyTime = {
@@ -43,6 +43,33 @@ describe('isNightHours', () => {
     // 2026-08-17은 월요일, 18:00까지 영업
     const now = new Date('2026-08-17T22:30:00+09:00');
     expect(isNightHours(baseDutyTime, now)).toBe(false);
+  });
+});
+
+describe('is24Hours', () => {
+  it('오늘 0000~2400 표기면 true를 반환한다', () => {
+    const dutyTime: DutyTime = { ...baseDutyTime, mon: { open: '0000', close: '2400' } };
+    const now = new Date('2026-08-17T03:00:00+09:00'); // 월요일
+    expect(is24Hours(dutyTime, now)).toBe(true);
+  });
+
+  it('오늘 0000~0000 표기(자정~자정)도 24시간 영업으로 true를 반환한다', () => {
+    // 공공데이터에 0000~2400과 0000~0000 두 표기가 섞여 있어 둘 다 잡아야 한다.
+    const dutyTime: DutyTime = { ...baseDutyTime, mon: { open: '0000', close: '0000' } };
+    const now = new Date('2026-08-17T03:00:00+09:00'); // 월요일
+    expect(is24Hours(dutyTime, now)).toBe(true);
+  });
+
+  it('마감이 늦어도(23:00) 24시간이 아니면 false를 반환한다', () => {
+    // 2026-08-21은 금요일, 09:00~23:00 영업 (심야 영업이지만 24시간은 아님)
+    const now = new Date('2026-08-21T10:00:00+09:00');
+    expect(is24Hours(baseDutyTime, now)).toBe(false);
+  });
+
+  it('해당 요일이 휴무(null)이면 false를 반환한다', () => {
+    // 2026-08-15는 토요일
+    const now = new Date('2026-08-15T10:00:00+09:00');
+    expect(is24Hours(baseDutyTime, now)).toBe(false);
   });
 });
 

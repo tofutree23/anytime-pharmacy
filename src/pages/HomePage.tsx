@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies } from '../hooks/usePharmacies';
+import { usePharmaciesInBounds, type MapBounds } from '../hooks/usePharmaciesInBounds';
 import { RegionPicker } from '../components/RegionPicker';
 import { FilterBar, type FilterKey } from '../components/FilterBar';
 import { PharmacyCard } from '../components/PharmacyCard';
@@ -33,9 +34,16 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       ? { type: 'nearby' as const, lat: locationState.lat, lng: locationState.lng }
       : null;
 
-  const { pharmacies, loading, error, refetch } = usePharmacies(
-    query ?? { type: 'region', regionPrefix: '__none__' },
-  );
+  const isRegionMode = query?.type === 'region';
+
+  // 지역 모드: 선택한 지역명으로 한 번에 다 불러온다(지역명에는 좌표가 없어 지도
+  // 범위 기반 재검색을 적용할 기준점이 없다). GPS(내 주변) 모드: 지도가 실제로
+  // 보여주는 범위에 있는 약국만, "이 지역 재검색" 버튼(최초 1회는 자동)으로
+  // 가져온다 — 지도를 조금만 움직여도 핀이 계속 늘어나는 문제를 막기 위함.
+  const [bounds, setBounds] = useState<MapBounds | null>(null);
+  const regionResult = usePharmacies(query?.type === 'region' ? query : { type: 'region', regionPrefix: '__none__' });
+  const boundsResult = usePharmaciesInBounds(bounds);
+  const { pharmacies, loading, error, refetch } = isRegionMode ? regionResult : boundsResult;
 
   const toggleFilter = (key: FilterKey) => {
     setActiveFilters((prev) => (prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key]));
@@ -47,8 +55,6 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     const now = new Date();
     return pharmacies.filter((pharmacy) => matchesActiveFilters(pharmacy, activeFilters, now));
   }, [pharmacies, activeFilters]);
-
-  const isRegionMode = query?.type === 'region';
 
   // 지도는 화면에 고정하고, 약국 카드 목록만 자체 스크롤 컨테이너 안에서 스크롤되도록
   // 한다. 목록은 한 번에 다 불러온 filteredPharmacies 전체에 대해 화면에 보이는
@@ -63,6 +69,17 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     estimateSize: () => 92,
     overscan: 6,
   });
+
+  // 목록이 비어 있을 때의 안내 문구. 원인(필터 vs 지역/범위 자체에 데이터 없음)에 따라
+  // 다른 문구를 보여줘야 사용자가 다음에 뭘 해야 할지 알 수 있다.
+  const emptyStateMessage =
+    activeFilters.length > 0 ? '선택한 조건에 맞는 약국이 없어요.' : '이 지역에 등록된 약국이 없어요.';
+  const emptyStateHint =
+    activeFilters.length > 0
+      ? '필터를 조정해보세요.'
+      : isRegionMode
+        ? '다른 지역을 선택해보세요.'
+        : '지도를 이동한 뒤 "이 지역 재검색"을 눌러보세요.';
 
   // 헤더의 위치 필을 눌렀을 때 실행된다. regionPrefix를 비우고 manualRegionOverride를
   // 켜서 GPS가 granted 상태로 남아 있더라도 RegionPicker로 강제 진입시킨다.
@@ -129,26 +146,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
         </div>
         <ComplianceNotice />
         <FilterBar active={activeFilters} onToggle={toggleFilter} />
-        {/* isNightHours()의 기본 심야 기준(2200)과 반드시 일치시킨다 — 로직과 문구가 따로 놀지
-            않도록, 여기 적힌 "22시"는 businessHours.ts의 nightStartHHmm 기본값을 그대로 옮긴 것. */}
-        <Paragraph typography="st13" color="#8B95A1" style={{ padding: '2px 16px 0' }}>
-          심야 영업 기준: 22시 이후 영업
-        </Paragraph>
-        <div style={{ padding: '0 16px' }}>
-          {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
-          {error && (
-            <div>
-              <Paragraph typography="st10">정보를 불러오지 못했어요.</Paragraph>
-              <button type="button" onClick={() => refetch()}>
-                다시 시도
-              </button>
-            </div>
-          )}
-          {!loading && !error && filteredPharmacies.length === 0 && (
-            <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
-          )}
-        </div>
-        <div style={{ padding: '0 16px', marginBottom: 16 }}>
+        <div style={{ padding: '0 16px', marginTop: 12, marginBottom: 16 }}>
           {/* 지도와 목록이 완전히 같은 filteredPharmacies를 받는다 — 목록에만 있고
               지도엔 안 보이는 항목이 생기지 않는다. 마커 개수 상한은 PharmacyMap
               내부의 MAX_MARKERS가 방어적으로 처리한다. */}
@@ -156,6 +154,10 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             pharmacies={filteredPharmacies}
             center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
             onSelectPharmacy={onSelectPharmacy}
+            // 지역 모드에서는 지도 범위 재검색을 적용하지 않는다(좌표 기준점이 없음) —
+            // null을 넘기면 PharmacyMap이 idle 추적 자체를 하지 않아 버튼도 뜨지 않고,
+            // 배경에서 불필요한 bounds 쿼리도 발생시키지 않는다.
+            onSearchThisArea={isRegionMode ? null : setBounds}
           />
         </div>
       </div>
@@ -163,36 +165,67 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       {/* 약국 목록만 담당하는 스크롤 컨테이너. flex:1로 지도 아래 남은 공간을 모두 차지하고,
           그 안에서만 스크롤된다(지도는 항상 같은 자리에 고정). */}
       <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
-        <List
-          style={{
-            position: 'relative',
-            height: rowVirtualizer.getTotalSize(),
-            margin: 0,
-            padding: 0,
-            listStyle: 'none',
-          }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-            const pharmacy = filteredPharmacies[virtualItem.index];
-            return (
-              <div
-                key={pharmacy.id}
-                ref={rowVirtualizer.measureElement}
-                data-index={virtualItem.index}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 16,
-                  right: 16,
-                  transform: `translateY(${virtualItem.start}px)`,
-                  paddingBottom: 12,
-                }}
-              >
-                <PharmacyCard pharmacy={pharmacy} onClick={onSelectPharmacy} />
-              </div>
-            );
-          })}
-        </List>
+        {loading && (
+          <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+            <Paragraph typography="st10" color="#8B95A1">
+              약국 정보를 불러오는 중이에요...
+            </Paragraph>
+          </div>
+        )}
+        {!loading && error && (
+          <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+            <Paragraph typography="st10" color="#8B95A1">
+              정보를 불러오지 못했어요.
+            </Paragraph>
+            <button type="button" onClick={() => refetch()} style={{ marginTop: 12 }}>
+              다시 시도
+            </button>
+          </div>
+        )}
+        {/* 빈 상태는 지도 아래, 목록이 있었을 자리에 그대로 두고 충분한 여백을 준다 —
+            필터/지도 사이에 끼워 두면(과거 배치) 눈에 잘 안 띄고 어색해 보였다. */}
+        {!loading && !error && filteredPharmacies.length === 0 && (
+          <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+            <Paragraph typography="st9" fontWeight="bold" color="#4E5968">
+              {emptyStateMessage}
+            </Paragraph>
+            <Paragraph typography="st11" color="#8B95A1" style={{ marginTop: 4 }}>
+              {emptyStateHint}
+            </Paragraph>
+          </div>
+        )}
+        {!loading && !error && filteredPharmacies.length > 0 && (
+          <List
+            style={{
+              position: 'relative',
+              height: rowVirtualizer.getTotalSize(),
+              margin: 0,
+              padding: 0,
+              listStyle: 'none',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+              const pharmacy = filteredPharmacies[virtualItem.index];
+              return (
+                <div
+                  key={pharmacy.id}
+                  ref={rowVirtualizer.measureElement}
+                  data-index={virtualItem.index}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 16,
+                    right: 16,
+                    transform: `translateY(${virtualItem.start}px)`,
+                    paddingBottom: 12,
+                  }}
+                >
+                  <PharmacyCard pharmacy={pharmacy} onClick={onSelectPharmacy} />
+                </div>
+              );
+            })}
+          </List>
+        )}
         <BannerAd />
       </div>
     </div>

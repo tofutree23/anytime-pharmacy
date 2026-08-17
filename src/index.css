@@ -25,6 +25,15 @@ body {
   width: 100%;
   max-width: 430px;
   background: #fff;
+  /* TDS의 TopNavigation 등은 position: fixed로 뷰포트 기준 배치된다. position: relative는
+     absolute 자손의 containing block만 바꿀 뿐, fixed 자손에는 영향을 주지 않는다 —
+     fixed의 containing block은 transform/perspective/filter/will-change 등이 걸린
+     조상으로만 바뀐다(스펙 규정). 그래서 relative만으로는 PC처럼 넓은 화면에서
+     뒤로가기 버튼 등이 여전히 430px 프레임을 벗어나 브라우저 뷰포트 좌측 끝에 붙었다.
+     transform을 하나 걸어주면(시각적으로는 항등 변환) fixed 자손도 이 프레임 안에서만
+     고정되도록 containing block이 바뀐다. */
+  position: relative;
+  transform: translateZ(0);
 }
 
 p {

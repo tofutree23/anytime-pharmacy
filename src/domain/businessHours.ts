@@ -138,3 +138,15 @@ export function isNightHours(dutyTime: DutyTime, now: Date, nightStartHHmm = '22
 export function isHolidayOpen(dutyTime: DutyTime): boolean {
   return dutyTime.holiday !== null;
 }
+
+// 공공데이터에서 24시간 운영은 두 가지 표기가 섞여 있다: "0000~2400"과 "0000~0000"
+// (둘 다 자정부터 다음 자정까지, 즉 하루 종일이라는 뜻). 실제 DB(25,267건)를 조회해
+// 확인한 값으로, 하나만 잡으면 표기가 다른 절반이 필터에서 누락된다. 심야 영업(마감이
+// 늦은 정도)과는 별개 개념이라 별도 필터로 구분한다 — 22시 마감도 "심야 영업"이지만
+// "24시간 영업"은 아니다.
+export function is24Hours(dutyTime: DutyTime, now: Date): boolean {
+  const hours = todayHours(dutyTime, now);
+  if (!hours) return false;
+  if (hours.open !== '0000') return false;
+  return hours.close === '2400' || hours.close === '0000';
+}
