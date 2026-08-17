@@ -86,8 +86,19 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   return (
     <div style={{ background: '#F5F6F8', minHeight: '100%' }}>
       <Top
-        title="언제나 약국"
-        subtitleBottom="지금 문 연 약국을 찾아보세요."
+        // Top의 title/subtitleBottom은 문자열을 그대로 넘기면 TDS 기본값(둘 다 16px/regular)이
+        // 적용돼 제목과 부제목의 크기 구분이 사라진다. 실제 렌더링된 CSS 변수(--tds-t-*-text-fontSize)를
+        // 확인해 t4=20px, st11=14px로 명시적인 위계를 준다.
+        title={
+          <Paragraph typography="t4" fontWeight="bold">
+            언제나 약국
+          </Paragraph>
+        }
+        subtitleBottom={
+          <Paragraph typography="st11" color="#4E5968">
+            지금 문 연 약국을 찾아보세요.
+          </Paragraph>
+        }
         // 헤더 우측에는 항상 현재 위치/지역을 보여주는 필/칩을 둔다. 지역 모드에서는
         // 선택된 지역명을, GPS 모드에서는 역지오코딩 없이 일반화된 라벨을 보여준다.
         // 클릭하면 (모드와 무관하게) 지역을 직접 고를 수 있게 한다.

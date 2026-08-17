@@ -35,12 +35,12 @@ export function PharmacyDetailPage({ pharmacy, onBack }: PharmacyDetailPageProps
         content={pharmacy.name}
       />
 
-      <Paragraph typography="st10" style={{ padding: '8px 16px' }}>
+      <Paragraph typography="st11" style={{ padding: '8px 16px' }}>
         {pharmacy.address}
       </Paragraph>
       {pharmacy.phone && (
         <a href={`tel:${pharmacy.phone}`}>
-          <Paragraph typography="st10" color="blue500" style={{ padding: '0 16px 8px' }}>
+          <Paragraph typography="st11" color="blue500" style={{ padding: '0 16px 8px' }}>
             {pharmacy.phone}
           </Paragraph>
         </a>
@@ -72,7 +72,7 @@ export function PharmacyDetailPage({ pharmacy, onBack }: PharmacyDetailPageProps
                 />
               }
               right={
-                <Paragraph typography="st10">
+                <Paragraph typography="st11">
                   {hours ? `${formatHHmm(hours.open)} ~ ${formatHHmm(hours.close)}` : '휴무'}
                 </Paragraph>
               }
