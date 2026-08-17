@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "deploy": "ait deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:functions": "deno test supabase/functions/sync-pharmacies/parse.test.ts"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "latest",
