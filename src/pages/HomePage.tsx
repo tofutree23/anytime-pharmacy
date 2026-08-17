@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { List, Top, Paragraph } from '@toss/tds-mobile';
+import { List, Top, Paragraph, TextButton } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies, REGION_QUERY_LIMIT } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
@@ -16,7 +16,7 @@ type HomePageProps = {
 };
 
 export function HomePage({ onSelectPharmacy }: HomePageProps) {
-  const { state: locationState } = useLocation();
+  const { state: locationState, requestAgain } = useLocation();
   const [regionPrefix, setRegionPrefix] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
 
@@ -49,6 +49,15 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   // 결과가 잘렸다는 사실을 사용자에게 알려준다.
   const regionTruncated = query?.type === 'region' && pharmacies.length >= REGION_QUERY_LIMIT;
 
+  const isRegionMode = query?.type === 'region';
+
+  // 지역 선택을 되돌린다. regionPrefix를 비우면 RegionPicker가 다시 나타나고,
+  // 동시에 위치 권한도 한 번 더 요청해 GPS가 가능해졌다면 주변 검색으로 돌아간다.
+  const changeRegion = () => {
+    setRegionPrefix(null);
+    requestAgain();
+  };
+
   if (locationState.status === 'loading') {
     return <Paragraph typography="st10">위치 정보를 확인하는 중이에요...</Paragraph>;
   }
@@ -60,6 +69,14 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   return (
     <div>
       <Top title="언제나 약국" subtitleBottom="지금 문 연 약국을 찾아보세요." />
+      {/* 지역 모드에서는 선택한 지역을 다시 바꿀 수 있어야 한다(위치 권한 재시도 포함). */}
+      {isRegionMode && (
+        <div style={{ padding: '0 24px 8px' }}>
+          <TextButton size="small" variant="arrow" arrowPlacement="inline" onClick={changeRegion}>
+            {regionPrefix} · 지역 변경
+          </TextButton>
+        </div>
+      )}
       <ComplianceNotice />
       <FilterBar active={activeFilters} onToggle={toggleFilter} />
       {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
