@@ -43,6 +43,8 @@ async function fetchAllPharmacies(
   const items: RawPharmacyItem[] = [];
   let pageNo = 1;
   let emptyPageRetried = false;
+  let totalCount = 0;
+  let abortedEarly = false;
 
   while (true) {
     const url = `${API_BASE}?serviceKey=${
@@ -73,13 +75,14 @@ async function fetchAllPharmacies(
       ? rawPageItems
       : [rawPageItems];
 
-    const totalCount = body?.totalCount ?? 0;
+    totalCount = body?.totalCount ?? 0;
     const reachedExpectedEnd = pageNo * PAGE_SIZE >= totalCount;
 
     // totalCount에 도달하기 전에 빈 페이지가 오면 정상적인 마지막 페이지가 아니라
     // API 쪽의 일시적 이상(레이트리밋, 순간 오류 등)일 가능성이 높다. 이를 "fetch 완료"로
     // 오인해 뒷페이지 약국들을 pruning 대상으로 삼는 일이 없도록, 같은 페이지를 한 번
-    // 재시도하고 그래도 비어 있으면 fetch를 불완전한 것으로 표시하고 중단한다.
+    // 재시도하고 그래도 비어 있으면 fetch를 중단한다(complete 여부는 루프 종료 후
+    // "실제로 모은 건수 vs totalCount"로 별도 판정한다 — 아래 참고).
     if (pageItems.length === 0 && !reachedExpectedEnd) {
       if (!emptyPageRetried) {
         emptyPageRetried = true;
@@ -87,20 +90,43 @@ async function fetchAllPharmacies(
       }
       console.warn(
         `공공API 페이지네이션 이상 감지: ${pageNo}페이지가 비어 있음 ` +
-          `(totalCount=${totalCount}, 지금까지 수집=${items.length}건). ` +
-          `이번 실행은 fetch를 중단하고 pruning을 건너뜁니다.`,
+          `(totalCount=${totalCount}, 지금까지 수집=${items.length}건). fetch를 중단합니다.`,
       );
-      return { items, complete: false };
+      abortedEarly = true;
+      break;
     }
 
     emptyPageRetried = false;
     items.push(...pageItems);
 
+    // 여기서 쓰는 pageNo 기반 reachedExpectedEnd/pageItems.length===0 판정은 "언제 다음
+    // 페이지 요청을 멈출지"를 정하는 루프 종료 조건일 뿐이다. pruning을 실행해도 안전한지
+    // 여부(=fetch가 정말로 완전했는지)는 이 판정만으로는 부족하다 — 예를 들어 totalCount=1500,
+    // PAGE_SIZE=1000인데 2페이지가 짧게(예: 300건) 또는 비어서(0건) 돌아오면
+    // pageNo * PAGE_SIZE(=2000) >= totalCount(=1500)가 우연히 참이 되어 "정상 종료"로
+    // 보이지만, 실제로 모은 건수(1000~1300건)는 totalCount(1500건)에 못 미친다. 이런 경우까지
+    // 잡아내기 위해 루프 종료 후 items.length와 totalCount를 직접 비교한다.
     if (reachedExpectedEnd || pageItems.length === 0) break;
     pageNo += 1;
   }
 
-  return { items, complete: true };
+  // pruning 안전 여부는 오직 "실제로 수집한 행 수가 totalCount 이상인가"로만 판단한다.
+  // 페이지 인덱스 산술(reachedExpectedEnd)은 다음 페이지를 요청할지 말지를 정하는 용도로만
+  // 쓰고, 실제 완전성 판정에는 절대 재사용하지 않는다 — 위 주석의 예시처럼 그 둘은 어긋날 수
+  // 있기 때문이다. totalCount가 실시간 변동 등으로 살짝 낮게 보고될 수도 있어 등호가 아니라
+  // >=로 비교하되, 정확히 일치하지 않으면 로그를 남긴다.
+  const fetchComplete = !abortedEarly && items.length >= totalCount;
+  if (!fetchComplete) {
+    console.warn(
+      `fetch 불완전: 수집 ${items.length}건 / totalCount ${totalCount}건. 이번 실행은 pruning을 건너뜁니다.`,
+    );
+  } else if (items.length !== totalCount) {
+    console.warn(
+      `수집 건수(${items.length})가 totalCount(${totalCount})와 정확히 일치하지 않습니다(초과 수집). pruning은 진행합니다.`,
+    );
+  }
+
+  return { items, complete: fetchComplete };
 }
 
 Deno.serve(async () => {
