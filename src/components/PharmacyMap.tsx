@@ -11,6 +11,11 @@ type PharmacyMapProps = {
   // 버튼을 눌렀을 때만(그리고 최초 1회는 자동으로) 호출된다. null이면(지역 선택
   // 모드처럼 좌표 기준점이 없는 경우) idle 추적 자체를 하지 않아 버튼도 뜨지 않는다.
   onSearchThisArea: ((bounds: MapBounds) => void) | null;
+  // 지역을 선택했을 때처럼 "다른 곳으로 점프해야 하는" 경우에만 넘긴다. GPS/범위
+  // 검색 모드에서는 null로 둬서, 데이터가 새로 로드될 때마다 사용자가 직접 이동시킨
+  // 지도 위치를 되돌리지 않는다(위 center prop과 달리 최초 생성 이후에도 값이 바뀌면
+  // 그때마다 실제로 지도를 이동시킨다).
+  focusCenter: { lat: number; lng: number } | null;
 };
 
 // 375px 폭 기준 참조 디자인은 지도 높이 220px(뷰포트의 약 25~30%)를 사용한다.
@@ -23,7 +28,7 @@ const MAX_MARKERS = 200;
 
 type KakaoLatLng = { getLat: () => number; getLng: () => number };
 type KakaoBounds = { getSouthWest: () => KakaoLatLng; getNorthEast: () => KakaoLatLng };
-type KakaoMap = { relayout: () => void; getBounds: () => KakaoBounds };
+type KakaoMap = { relayout: () => void; getBounds: () => KakaoBounds; setCenter: (latlng: unknown) => void };
 type KakaoMarker = { setMap: (map: unknown) => void };
 
 function toMapBounds(bounds: KakaoBounds): MapBounds {
@@ -32,7 +37,13 @@ function toMapBounds(bounds: KakaoBounds): MapBounds {
   return { swLat: sw.getLat(), swLng: sw.getLng(), neLat: ne.getLat(), neLng: ne.getLng() };
 }
 
-export function PharmacyMap({ pharmacies, center, onSelectPharmacy, onSearchThisArea }: PharmacyMapProps) {
+export function PharmacyMap({
+  pharmacies,
+  center,
+  onSelectPharmacy,
+  onSearchThisArea,
+  focusCenter,
+}: PharmacyMapProps) {
   const { isLoaded, error: loadError } = useKakaoMap();
   const [initError, setInitError] = useState<string | null>(null);
   const [showSearchButton, setShowSearchButton] = useState(false);
@@ -119,6 +130,17 @@ export function PharmacyMap({ pharmacies, center, onSelectPharmacy, onSearchThis
     if (!isLoaded) return;
     ensureMap();
   }, [isLoaded, ensureMap]);
+
+  // 1.5) focusCenter가 (의미 있게) 바뀔 때만 지도를 실제로 이동시킨다 — 예: 지역을
+  // 새로 선택해서 그 지역 약국 목록의 첫 번째 좌표로 점프해야 하는 경우. 지도가
+  // 아직 생성되지 않았다면(SDK 로딩 중) 다음 focusCenter 갱신이나 생성 시점의
+  // centerRef 값으로 대체되므로 여기서는 조용히 무시한다.
+  useEffect(() => {
+    if (!isLoaded || !focusCenter) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.setCenter(new window.kakao.maps.LatLng(focusCenter.lat, focusCenter.lng));
+  }, [isLoaded, focusCenter?.lat, focusCenter?.lng]);
 
   // 2) pharmacies가 바뀌면 마커만 다시 만든다. 지도 인스턴스와 중심/확대 상태는 그대로 둔다.
   //    지도 생성이 이전에 실패했더라도 여기서 ensureMap()이 다시 시도하므로
