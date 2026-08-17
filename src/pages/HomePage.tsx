@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { List, Top, Paragraph, Tab } from '@toss/tds-mobile';
+import { List, Top, Paragraph } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
@@ -11,8 +11,6 @@ import { BannerAd } from '../components/BannerAd';
 import { isOpenNow, isNightHours, isHolidayOpen } from '../domain/businessHours';
 import type { Pharmacy } from '../domain/types';
 
-type ViewMode = 'list' | 'map';
-
 type HomePageProps = {
   onSelectPharmacy: (pharmacy: Pharmacy) => void;
 };
@@ -21,7 +19,6 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   const { state: locationState } = useLocation();
   const [regionPrefix, setRegionPrefix] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   const query =
     locationState.status === 'granted'
@@ -73,26 +70,16 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       {!loading && !error && filteredPharmacies.length === 0 && (
         <Paragraph typography="st10">주변에 등록된 약국이 없어요.</Paragraph>
       )}
-      <Tab
-        onChange={(index) => setViewMode(index === 0 ? 'list' : 'map')}
-        ariaLabel="약국 보기 방식 선택"
-      >
-        <Tab.Item selected={viewMode === 'list'}>목록</Tab.Item>
-        <Tab.Item selected={viewMode === 'map'}>지도</Tab.Item>
-      </Tab>
-      {viewMode === 'list' ? (
-        <List>
-          {filteredPharmacies.map((pharmacy) => (
-            <PharmacyCard key={pharmacy.id} pharmacy={pharmacy} onClick={onSelectPharmacy} />
-          ))}
-        </List>
-      ) : (
-        <PharmacyMap
-          pharmacies={filteredPharmacies}
-          center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
-          onSelectPharmacy={onSelectPharmacy}
-        />
-      )}
+      <PharmacyMap
+        pharmacies={filteredPharmacies}
+        center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
+        onSelectPharmacy={onSelectPharmacy}
+      />
+      <List>
+        {filteredPharmacies.map((pharmacy) => (
+          <PharmacyCard key={pharmacy.id} pharmacy={pharmacy} onClick={onSelectPharmacy} />
+        ))}
+      </List>
       <BannerAd />
     </div>
   );

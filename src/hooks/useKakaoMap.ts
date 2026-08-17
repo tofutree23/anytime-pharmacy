@@ -21,7 +21,12 @@ function loadKakaoMapScript(): Promise<void> {
     const script = document.createElement('script');
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${APP_KEY}&autoload=false`;
     script.onload = () => {
-      window.kakao.maps.load(() => resolve());
+      try {
+        window.kakao.maps.load(() => resolve());
+      } catch {
+        // 쿼터 초과, 서비스 비활성화 등 SDK 초기화 단계에서 던지는 에러도 여기서 잡는다.
+        reject(new Error('카카오맵 SDK 초기화 실패'));
+      }
     };
     script.onerror = () => reject(new Error('카카오맵 SDK 로드 실패'));
     document.head.appendChild(script);
