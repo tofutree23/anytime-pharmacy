@@ -21,4 +21,6 @@ export type Pharmacy = {
   dutyTime: DutyTime;
   source: string;
   updatedAt: string;
+  /** 기준 위치(GPS)로부터의 거리(m). 지역 조회처럼 기준점이 없으면 null. */
+  distanceMeters: number | null;
 };

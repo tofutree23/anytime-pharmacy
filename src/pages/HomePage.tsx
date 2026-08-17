@@ -73,7 +73,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       {isRegionMode && (
         <div style={{ padding: '0 24px 8px' }}>
           <TextButton size="small" variant="arrow" arrowPlacement="inline" onClick={changeRegion}>
-            {regionPrefix} · 지역 변경
+            {regionPrefix} 지역 변경
           </TextButton>
         </div>
       )}

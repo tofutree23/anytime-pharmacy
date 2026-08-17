@@ -12,6 +12,8 @@ type PharmacyRow = {
   duty_time: Pharmacy['dutyTime'];
   source: string;
   updated_at: string;
+  // nearby_pharmacies RPC에서만 내려온다. 지역 조회에는 기준점이 없어 없는 게 정상.
+  distance_meters?: number | null;
 };
 
 function toPharmacy(row: PharmacyRow): Pharmacy {
@@ -25,6 +27,7 @@ function toPharmacy(row: PharmacyRow): Pharmacy {
     dutyTime: row.duty_time,
     source: row.source,
     updatedAt: row.updated_at,
+    distanceMeters: row.distance_meters ?? null,
   };
 }
 
@@ -47,34 +50,51 @@ export function usePharmacies(query: PharmacyQuery) {
     setLoading(true);
     setError(null);
 
-    try {
+    // 네트워크 예외도 재시도 대상이 되도록 throw를 message로 변환한다.
+    const runQuery = async (): Promise<{ rows: PharmacyRow[] | null; message: string | null }> => {
+      try {
+        return await runQueryOnce();
+      } catch (err) {
+        return {
+          rows: null,
+          message: err instanceof Error ? err.message : '알 수 없는 오류가 발생했어요.',
+        };
+      }
+    };
+
+    const runQueryOnce = async (): Promise<{ rows: PharmacyRow[] | null; message: string | null }> => {
       if (query.type === 'nearby') {
         const { data, error: rpcError } = await supabase.rpc('nearby_pharmacies', {
           target_lat: query.lat,
           target_lng: query.lng,
           max_distance_meters: 5000,
         });
+        return { rows: (data ?? []) as PharmacyRow[], message: rpcError?.message ?? null };
+      }
+      const { data, error: queryError } = await supabase
+        .from('pharmacies')
+        .select('*')
+        .ilike('address', `${query.regionPrefix}%`)
+        .order('name', { ascending: true })
+        .limit(REGION_QUERY_LIMIT);
+      return { rows: (data ?? []) as PharmacyRow[], message: queryError?.message ?? null };
+    };
+
+    try {
+      // 스펙상 실패 시 1회 자동 재시도한다. 두 번 모두 실패해야 에러 상태로 넘어가고,
+      // 그 뒤에는 기존 "다시 시도" 버튼이 수동 재시도 수단으로 남는다.
+      let result = await runQuery();
+      if (result.message !== null) {
         if (requestIdRef.current !== requestId) return;
-        if (rpcError) {
-          setError(rpcError.message);
-          setPharmacies([]);
-        } else {
-          setPharmacies(((data ?? []) as PharmacyRow[]).map(toPharmacy));
-        }
+        result = await runQuery();
+      }
+
+      if (requestIdRef.current !== requestId) return;
+      if (result.message !== null) {
+        setError(result.message);
+        setPharmacies([]);
       } else {
-        const { data, error: queryError } = await supabase
-          .from('pharmacies')
-          .select('*')
-          .ilike('address', `${query.regionPrefix}%`)
-          .order('name', { ascending: true })
-          .limit(REGION_QUERY_LIMIT);
-        if (requestIdRef.current !== requestId) return;
-        if (queryError) {
-          setError(queryError.message);
-          setPharmacies([]);
-        } else {
-          setPharmacies(((data ?? []) as PharmacyRow[]).map(toPharmacy));
-        }
+        setPharmacies((result.rows ?? []).map(toPharmacy));
       }
     } catch (err) {
       if (requestIdRef.current !== requestId) return;
