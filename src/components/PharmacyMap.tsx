@@ -16,6 +16,9 @@ type PharmacyMapProps = {
   // 지도 위치를 되돌리지 않는다(위 center prop과 달리 최초 생성 이후에도 값이 바뀌면
   // 그때마다 실제로 지도를 이동시킨다).
   focusCenter: { lat: number; lng: number } | null;
+  // GPS 권한이 있을 때만 제공된다. 지역 선택 또는 지도 패닝 뒤 현재 좌표 기준으로
+  // 지도와 검색 범위를 함께 초기화한다.
+  onReturnToCurrentLocation: (() => void) | null;
 };
 
 // 375px 폭 기준 참조 디자인은 지도 높이 220px(뷰포트의 약 25~30%)를 사용한다.
@@ -43,6 +46,7 @@ export function PharmacyMap({
   onSelectPharmacy,
   onSearchThisArea,
   focusCenter,
+  onReturnToCurrentLocation,
 }: PharmacyMapProps) {
   const { isLoaded, error: loadError } = useKakaoMap();
   const [initError, setInitError] = useState<string | null>(null);
@@ -216,6 +220,40 @@ export function PharmacyMap({
         }}
       >
         <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }} />
+        {showMap && onReturnToCurrentLocation && (
+          <button
+            type="button"
+            aria-label="내 위치로 돌아가기"
+            onClick={onReturnToCurrentLocation}
+            style={{
+              position: 'absolute',
+              right: 12,
+              bottom: 12,
+              zIndex: 10,
+              width: 40,
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              border: '1px solid #E5E8EB',
+              borderRadius: 20,
+              background: '#fff',
+              color: '#3182F6',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.16)',
+            }}
+          >
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
+              <path
+                d="M12 2v3M12 19v3M2 12h3M19 12h3"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
         {showMap && showSearchButton && (
           <button
             type="button"

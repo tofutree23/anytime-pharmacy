@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
@@ -12,6 +12,7 @@ import { ComplianceNotice } from '../components/ComplianceNotice';
 import { BannerAd } from '../components/BannerAd';
 import { matchesActiveFilters } from '../domain/filterPharmacies';
 import type { Pharmacy } from '../domain/types';
+import { homeSearchReducer, initialHomeSearchState } from './homeSearchState';
 
 type HomePageProps = {
   onSelectPharmacy: (pharmacy: Pharmacy) => void;
@@ -19,11 +20,11 @@ type HomePageProps = {
 
 export function HomePage({ onSelectPharmacy }: HomePageProps) {
   const { state: locationState } = useLocation();
-  const [regionPrefix, setRegionPrefix] = useState<string | null>(null);
+  const [searchState, dispatchSearch] = useReducer(homeSearchReducer, initialHomeSearchState);
+  const { regionPrefix, manualRegionOverride, bounds, mapRevision } = searchState;
   // GPS 권한이 허용된 상태에서도 사용자가 헤더의 위치 필을 눌러 "지역 직접 선택" 흐름으로
   // 강제 진입할 수 있게 하는 플래그. 이게 없으면 GPS가 granted인 동안은 regionPrefix를
   // null로 되돌려도 query가 즉시 nearby로 재계산되어 RegionPicker가 전혀 보이지 않는다.
-  const [manualRegionOverride, setManualRegionOverride] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
 
   // regionPrefix가 있으면(사용자가 명시적으로 지역을 골랐다면) GPS가 granted이더라도
@@ -40,7 +41,6 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   // 범위 기반 재검색을 적용할 기준점이 없다). GPS(내 주변) 모드: 지도가 실제로
   // 보여주는 범위에 있는 약국만, "이 지역 재검색" 버튼(최초 1회는 자동)으로
   // 가져온다 — 지도를 조금만 움직여도 핀이 계속 늘어나는 문제를 막기 위함.
-  const [bounds, setBounds] = useState<MapBounds | null>(null);
   const regionResult = usePharmacies(query?.type === 'region' ? query : { type: 'region', regionPrefix: '__none__' });
   const boundsResult = usePharmaciesInBounds(bounds);
   const { pharmacies, loading, error, refetch } = isRegionMode ? regionResult : boundsResult;
@@ -92,13 +92,16 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   // 'loading'으로 바뀌어 RegionPicker 대신 로딩 화면이 먼저 뜨고, GPS 응답이 느리거나
   // 멈추면 그 상태에 갇힐 수 있다. 사용자가 실제로 지역을 고르면 override는 해제된다.
   const changeRegion = () => {
-    setRegionPrefix(null);
-    setManualRegionOverride(true);
+    dispatchSearch({ type: 'open-region-picker' });
   };
 
   const selectRegion = (region: string) => {
-    setRegionPrefix(region);
-    setManualRegionOverride(false);
+    dispatchSearch({ type: 'select-region', regionPrefix: region });
+  };
+
+  const returnToCurrentLocation = () => {
+    if (locationState.status !== 'granted') return;
+    dispatchSearch({ type: 'return-to-current-location' });
   };
 
   if (locationState.status === 'loading') {
@@ -106,7 +109,12 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   }
 
   if (!regionPrefix && (locationState.status === 'fallback' || manualRegionOverride)) {
-    return <RegionPicker onSelect={selectRegion} />;
+    return (
+      <RegionPicker
+        onSelect={selectRegion}
+        onUseCurrentLocation={locationState.status === 'granted' ? returnToCurrentLocation : undefined}
+      />
+    );
   }
 
   return (
@@ -156,6 +164,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
               지도엔 안 보이는 항목이 생기지 않는다. 마커 개수 상한은 PharmacyMap
               내부의 MAX_MARKERS가 방어적으로 처리한다. */}
           <PharmacyMap
+            key={mapRevision}
             pharmacies={filteredPharmacies}
             center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
             // 지역을 선택하면 그 지역 약국 목록의 첫 번째 좌표로 지도를 이동시킨다(정렬
@@ -166,7 +175,10 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             // 지역 모드에서는 지도 범위 재검색을 적용하지 않는다(좌표 기준점이 없음) —
             // null을 넘기면 PharmacyMap이 idle 추적 자체를 하지 않아 버튼도 뜨지 않고,
             // 배경에서 불필요한 bounds 쿼리도 발생시키지 않는다.
-            onSearchThisArea={isRegionMode ? null : setBounds}
+            onSearchThisArea={
+              isRegionMode ? null : (nextBounds: MapBounds) => dispatchSearch({ type: 'set-bounds', bounds: nextBounds })
+            }
+            onReturnToCurrentLocation={locationState.status === 'granted' ? returnToCurrentLocation : null}
           />
         </div>
       </div>
