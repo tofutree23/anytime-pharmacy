@@ -80,10 +80,25 @@ function nowMinutes(now: Date): number {
   return hours * 60 + minutes;
 }
 
+// 공공데이터의 자정 넘김 표기는 두 가지가 섞여 있다: close를 open보다 작은 값으로
+// "감싸서" 표기(예: 22:00~02:00 → close="0200")하거나, close를 24를 넘겨 그대로
+// 이어 쓰는 표기(예: 22:00~01:00 → close="2500", 심지어 "3000"=06:00까지도 있다).
+// 실제 DB(25,267건)에서 후자가 1,124건 확인됐다 — close<open만으로 자정 넘김을
+// 판정하면 close가 2400 이상인 이 케이스들이 전부 "영업 종료"로 잘못 판정된다.
+function crossesMidnight(openMinutes: number, closeMinutes: number): boolean {
+  return closeMinutes >= 24 * 60 || closeMinutes < openMinutes;
+}
+
+// close가 24:00을 넘겨 표기된 경우(예: "2500" = 다음날 01:00) 실제 다음날 기준
+// 분 단위로 정규화한다. close<open으로 감싸는 표기는 이미 다음날 기준 값이라 그대로 둔다.
+function normalizeNextDayClose(closeMinutes: number): number {
+  return closeMinutes >= 24 * 60 ? closeMinutes - 24 * 60 : closeMinutes;
+}
+
 /**
  * 어제 시작한 자정 넘김 shift가 현재까지 이어지고 있는지 확인한다.
- * 어제 영업시간이 자정을 넘기면(close < open) 그 shift는 어제 open부터
- * 오늘 close까지 이어지므로, 현재가 어제의 close 이전이면 영업중이다.
+ * 어제 영업시간이 자정을 넘기면 그 shift는 어제 open부터 오늘 close까지 이어지므로,
+ * 현재가 (정규화한) 어제의 close 이전이면 영업중이다.
  */
 function isCoveredByYesterdayOvernight(dutyTime: DutyTime, now: Date, current: number): boolean {
   const yesterdayHour = yesterdayHours(dutyTime, now);
@@ -92,10 +107,9 @@ function isCoveredByYesterdayOvernight(dutyTime: DutyTime, now: Date, current: n
   const yesterdayOpen = toMinutes(yesterdayHour.open);
   const yesterdayClose = toMinutes(yesterdayHour.close);
 
-  // 어제가 자정을 넘기지 않으면 오늘까지 이어질 수 없다.
-  if (yesterdayClose >= yesterdayOpen) return false;
+  if (!crossesMidnight(yesterdayOpen, yesterdayClose)) return false;
 
-  return current <= yesterdayClose;
+  return current <= normalizeNextDayClose(yesterdayClose);
 }
 
 export function isOpenNow(dutyTime: DutyTime, now: Date): boolean {
@@ -107,8 +121,8 @@ export function isOpenNow(dutyTime: DutyTime, now: Date): boolean {
     const open = toMinutes(hours.open);
     const close = toMinutes(hours.close);
 
-    if (close < open) {
-      // 오늘이 자정을 넘기는 경우 (예: 22:00 ~ 02:00).
+    if (crossesMidnight(open, close)) {
+      // 오늘이 자정을 넘기는 경우 (예: 22:00 ~ 02:00, 또는 close="2500"으로 표기된 22:00~01:00).
       // 이 shift는 오늘 open부터 내일 close까지이므로 open 이후면 영업중.
       if (current >= open) return true;
     } else if (current >= open && current <= close) {

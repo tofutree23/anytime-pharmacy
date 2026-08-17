@@ -123,6 +123,28 @@ describe('midnight-crossing logic (자정 넘김 영업)', () => {
     const now = new Date('2026-08-18T01:00:00+09:00');
     expect(isOpenNow(dutyTime, now)).toBe(false);
   });
+
+  it('close가 "2500"(24시를 넘긴 표기)이어도 자정 이후 영업중으로 판정한다', () => {
+    // 공공데이터에는 22:00~02:00을 close="0200"으로 감싸는 표기 말고, close="2500"처럼
+    // 24를 넘겨 그대로 이어 쓰는 표기도 섞여 있다(실제 DB에서 1,124건 확인).
+    // 2026-08-17은 월요일, 22:00~다음날 01:00(close="2500")
+    const dutyTime: DutyTime = { ...baseDutyTime, mon: { open: '2200', close: '2500' } };
+    // 2026-08-18 00:30 (화요일 새벽, 월요일 밤 22:00~2500 표기의 연속)
+    const now = new Date('2026-08-18T00:30:00+09:00');
+    expect(isOpenNow(dutyTime, now)).toBe(true);
+  });
+
+  it('close가 "2500"이면 마감 이후(01:00 이후)엔 영업중이 아니다', () => {
+    const dutyTime: DutyTime = { ...baseDutyTime, mon: { open: '2200', close: '2500' } };
+    // 2026-08-18 01:30 (화요일, 실제 마감 01:00을 지남)
+    const now = new Date('2026-08-18T01:30:00+09:00');
+    expect(isOpenNow(dutyTime, now)).toBe(false);
+  });
+
+  it('close가 "2200"처럼 24시를 넘기지 않으면 종전처럼 당일 마감으로 판정한다', () => {
+    const now = new Date('2026-08-17T23:00:00+09:00'); // 월요일 23:00, 09:00~18:00 마감 이후
+    expect(isOpenNow(baseDutyTime, now)).toBe(false);
+  });
 });
 
 describe('KST timezone handling', () => {
