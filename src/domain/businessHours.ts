@@ -53,6 +53,15 @@ function todayHours(dutyTime: DutyTime, now: Date): DayHours | null {
   return dutyTime[key];
 }
 
+/**
+ * KST 기준 오늘 요일에 해당하는 DutyTime 키를 반환한다('holiday' 제외).
+ * 화면에서 "오늘" 행을 강조하는 등 요일별 UI에 재사용한다.
+ */
+export function getTodayDutyKey(now: Date): Exclude<keyof DutyTime, 'holiday'> {
+  const { dayOfWeek } = getKstDateParts(now);
+  return DAY_KEYS[dayOfWeek];
+}
+
 function yesterdayHours(dutyTime: DutyTime, now: Date): DayHours | null {
   const { dayOfWeek } = getKstDateParts(now);
   const yesterdayDayOfWeek = (dayOfWeek - 1 + 7) % 7;

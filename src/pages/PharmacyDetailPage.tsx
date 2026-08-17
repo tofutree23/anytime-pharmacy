@@ -1,5 +1,7 @@
-import { TopNavigation, TopNavigationBackButton, List, ListRow, Paragraph } from '@toss/tds-mobile';
+import { TopNavigation, TopNavigationBackButton, List, ListRow, Paragraph, Badge } from '@toss/tds-mobile';
 import type { Pharmacy, DutyTime } from '../domain/types';
+import { getTodayDutyKey } from '../domain/businessHours';
+import { ComplianceNotice } from '../components/ComplianceNotice';
 
 const DAY_LABELS: Array<[keyof DutyTime, string]> = [
   ['mon', '월요일'],
@@ -22,6 +24,10 @@ type PharmacyDetailPageProps = {
 };
 
 export function PharmacyDetailPage({ pharmacy, onBack }: PharmacyDetailPageProps) {
+  // businessHours.ts의 KST 기준 로직을 그대로 재사용해 "오늘" 요일을 계산한다.
+  // (raw Date.getDay()는 호스트 타임존에 따라 요일이 어긋날 수 있어 사용하지 않는다.)
+  const todayKey = getTodayDutyKey(new Date());
+
   return (
     <div>
       <TopNavigation
@@ -43,10 +49,28 @@ export function PharmacyDetailPage({ pharmacy, onBack }: PharmacyDetailPageProps
       <List>
         {DAY_LABELS.map(([key, label]) => {
           const hours = pharmacy.dutyTime[key];
+          const isToday = key === todayKey;
           return (
             <ListRow
               key={key}
-              contents={<ListRow.Texts type="1RowTypeA" top={label} />}
+              style={isToday ? { background: '#F8FBFF' } : undefined}
+              contents={
+                <ListRow.Texts
+                  type="1RowTypeA"
+                  top={
+                    isToday ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        {label}
+                        <Badge variant="fill" color="blue" size="small">
+                          오늘
+                        </Badge>
+                      </span>
+                    ) : (
+                      label
+                    )
+                  }
+                />
+              }
               right={
                 <Paragraph typography="st10">
                   {hours ? `${formatHHmm(hours.open)} ~ ${formatHHmm(hours.close)}` : '휴무'}
@@ -56,6 +80,8 @@ export function PharmacyDetailPage({ pharmacy, onBack }: PharmacyDetailPageProps
           );
         })}
       </List>
+
+      <ComplianceNotice />
 
       <Paragraph typography="st11" color="grey500" style={{ padding: '8px 16px' }}>
         {pharmacy.source} · {new Date(pharmacy.updatedAt).toLocaleString('ko-KR')} 기준

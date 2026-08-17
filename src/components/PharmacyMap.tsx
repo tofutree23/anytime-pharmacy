@@ -8,7 +8,10 @@ type PharmacyMapProps = {
   onSelectPharmacy: (pharmacy: Pharmacy) => void;
 };
 
-const MAP_HEIGHT = '45vh';
+// 375px 폭 기준 참조 디자인은 지도 높이 220px(뷰포트의 약 25~30%)를 사용한다.
+// 기존 45vh는 지도가 화면을 과도하게 차지해 리스트가 밀리는 문제가 있어,
+// 리스트 중심 레이아웃에 맞게 고정 픽셀 값으로 낮춘다.
+const MAP_HEIGHT = '240px';
 // 마커는 한 개씩 동기적으로 생성되므로 행 수가 많으면 그대로 프리즈로 이어진다.
 // 호출자가 상한 없는 배열을 넘기더라도 안전하도록 방어적으로 자른다.
 const MAX_MARKERS = 200;

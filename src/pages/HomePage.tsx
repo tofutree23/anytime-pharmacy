@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { List, Top, Paragraph, TextButton } from '@toss/tds-mobile';
+import { Top, Paragraph, TextButton } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies, REGION_QUERY_LIMIT, NEARBY_QUERY_LIMIT } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
@@ -71,16 +71,31 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   }
 
   return (
-    <div>
-      <Top title="언제나 약국" subtitleBottom="지금 문 연 약국을 찾아보세요." />
-      {/* 지역 모드에서는 선택한 지역을 다시 바꿀 수 있어야 한다(위치 권한 재시도 포함). */}
-      {isRegionMode && (
-        <div style={{ padding: '0 24px 8px' }}>
-          <TextButton size="small" variant="arrow" arrowPlacement="inline" onClick={changeRegion}>
-            {regionPrefix} 지역 변경
-          </TextButton>
-        </div>
-      )}
+    <div style={{ background: '#F5F6F8', minHeight: '100%' }}>
+      <Top
+        title="언제나 약국"
+        subtitleBottom="지금 문 연 약국을 찾아보세요."
+        // 지역 모드에서는 헤더 우측에 현재 지역을 보여주는 필/칩을 두고,
+        // 클릭하면 지역을 다시 고를 수 있게 한다(위치 권한 재시도 포함).
+        right={
+          isRegionMode ? (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: '#fff',
+                border: '1px solid #E5E8EB',
+                borderRadius: 999,
+                padding: '4px 6px 4px 12px',
+              }}
+            >
+              <TextButton size="xsmall" variant="arrow" arrowPlacement="inline" onClick={changeRegion}>
+                {regionPrefix}
+              </TextButton>
+            </div>
+          ) : undefined
+        }
+      />
       <ComplianceNotice />
       <FilterBar active={activeFilters} onToggle={toggleFilter} />
       {loading && <Paragraph typography="st10">약국 정보를 불러오는 중이에요...</Paragraph>}
@@ -107,11 +122,13 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
         center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
         onSelectPharmacy={onSelectPharmacy}
       />
-      <List>
+      {/* 참조 디자인은 구분선이 있는 그룹 리스트가 아니라 gap 12px로 떠 있는 카드들이라,
+          TDS List 대신 카드 사이 여백을 주는 flex 컨테이너를 사용한다. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 16px 16px' }}>
         {filteredPharmacies.map((pharmacy) => (
           <PharmacyCard key={pharmacy.id} pharmacy={pharmacy} onClick={onSelectPharmacy} />
         ))}
-      </List>
+      </div>
       <BannerAd />
     </div>
   );
