@@ -6,6 +6,7 @@ import { RegionPicker } from '../components/RegionPicker';
 import { FilterBar, type FilterKey } from '../components/FilterBar';
 import { PharmacyCard } from '../components/PharmacyCard';
 import { ComplianceNotice } from '../components/ComplianceNotice';
+import { BannerAd } from '../components/BannerAd';
 import { isOpenNow, isNightHours, isHolidayOpen } from '../domain/businessHours';
 import type { Pharmacy } from '../domain/types';
 
@@ -73,6 +74,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
           <PharmacyCard key={pharmacy.id} pharmacy={pharmacy} onClick={onSelectPharmacy} />
         ))}
       </List>
+      <BannerAd />
     </div>
   );
 }
