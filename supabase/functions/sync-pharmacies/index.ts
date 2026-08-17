@@ -102,6 +102,9 @@ Deno.serve(async () => {
       console.warn(`정규화 실패로 건너뛴 약국 행: ${skipped}건 / 전체 ${rawItems.length}건`);
     }
 
+    // 이번 실행에서 갱신된 행을 식별하기 위해 모든 행에 동일한 타임스탬프를 쓴다.
+    const syncedAt = new Date().toISOString();
+
     const rows = normalized.map((p) => ({
       id: p.id,
       name: p.name,
@@ -110,7 +113,7 @@ Deno.serve(async () => {
       lat: p.lat,
       lng: p.lng,
       duty_time: p.dutyTime,
-      updated_at: new Date().toISOString(),
+      updated_at: syncedAt,
     }));
 
     for (let i = 0; i < rows.length; i += UPSERT_CHUNK_SIZE) {
@@ -121,7 +124,25 @@ Deno.serve(async () => {
       if (error) throw error;
     }
 
-    return new Response(JSON.stringify({ synced: rows.length, skipped }), {
+    // 공공API 현재 데이터셋에 더 이상 없는 약국(= 이번 동기화가 건드리지 않은 행)을 정리한다.
+    // 폐업한 약국이 계속 "영업중"으로 남는 것이 건강정보 앱에서는 실제 피해로 이어진다.
+    // fetch + upsert가 모두 성공한 뒤에만 실행하며(실패 시에는 위에서 이미 early return),
+    // 결과가 비어 있으면 테이블을 통째로 비울 위험이 있어 정리를 건너뛴다.
+    let pruned = 0;
+    if (rows.length > 0) {
+      const { data: deleted, error: deleteError } = await supabase
+        .from("pharmacies")
+        .delete()
+        .lt("updated_at", syncedAt)
+        .select("id");
+      if (deleteError) throw deleteError;
+      pruned = deleted?.length ?? 0;
+      if (pruned > 0) {
+        console.info(`공공API에서 사라진 약국 정리: ${pruned}건`);
+      }
+    }
+
+    return new Response(JSON.stringify({ synced: rows.length, skipped, pruned }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
