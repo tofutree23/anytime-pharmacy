@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Top, Paragraph, TextButton } from '@toss/tds-mobile';
+import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies, REGION_QUERY_LIMIT, NEARBY_QUERY_LIMIT } from '../hooks/usePharmacies';
 import { RegionPicker } from '../components/RegionPicker';
@@ -92,20 +92,9 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
         // 선택된 지역명을, GPS 모드에서는 역지오코딩 없이 일반화된 라벨을 보여준다.
         // 클릭하면 (모드와 무관하게) 지역을 직접 고를 수 있게 한다.
         right={
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              background: '#fff',
-              border: '1px solid #E5E8EB',
-              borderRadius: 999,
-              padding: '4px 6px 4px 12px',
-            }}
-          >
-            <TextButton size="xsmall" variant="arrow" arrowPlacement="inline" onClick={changeRegion}>
-              {isRegionMode ? regionPrefix : '내 위치 근처'}
-            </TextButton>
-          </div>
+          <ChipItem onClick={changeRegion} right={<ChipItemRightIcon iconType="dropdown" />}>
+            {isRegionMode ? regionPrefix : '내 위치 근처'}
+          </ChipItem>
         }
       />
       <ComplianceNotice />
@@ -134,13 +123,24 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
         center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
         onSelectPharmacy={onSelectPharmacy}
       />
-      {/* 참조 디자인은 구분선이 있는 그룹 리스트가 아니라 gap 12px로 떠 있는 카드들이라,
-          TDS List 대신 카드 사이 여백을 주는 flex 컨테이너를 사용한다. */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 16px 16px' }}>
+      {/* 참조 디자인은 구분선이 있는 그룹 리스트가 아니라 gap 12px로 떠 있는 카드들이다.
+          TDS List(ul)를 사용하되 기본 목록 스타일(margin/padding/list-style)을 리셋하고
+          flex column + gap으로 카드 사이 여백을 준다. 각 카드의 구분선 제거는
+          PharmacyCard 내부 ListRow의 border="none"이 담당한다. */}
+      <List
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          padding: '4px 16px 16px',
+          margin: 0,
+          listStyle: 'none',
+        }}
+      >
         {filteredPharmacies.map((pharmacy) => (
           <PharmacyCard key={pharmacy.id} pharmacy={pharmacy} onClick={onSelectPharmacy} />
         ))}
-      </div>
+      </List>
       <BannerAd />
     </div>
   );
