@@ -18,14 +18,19 @@ type HomePageProps = {
 export function HomePage({ onSelectPharmacy }: HomePageProps) {
   const { state: locationState, requestAgain } = useLocation();
   const [regionPrefix, setRegionPrefix] = useState<string | null>(null);
+  // GPS 권한이 허용된 상태에서도 사용자가 헤더의 위치 필을 눌러 "지역 직접 선택" 흐름으로
+  // 강제 진입할 수 있게 하는 플래그. 이게 없으면 GPS가 granted인 동안은 regionPrefix를
+  // null로 되돌려도 query가 즉시 nearby로 재계산되어 RegionPicker가 전혀 보이지 않는다.
+  const [manualRegionOverride, setManualRegionOverride] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
 
-  const query =
-    locationState.status === 'granted'
+  // regionPrefix가 있으면(사용자가 명시적으로 지역을 골랐다면) GPS가 granted이더라도
+  // 지역 검색을 우선한다. GPS 우선순위는 regionPrefix가 비어 있을 때만 적용된다.
+  const query = regionPrefix
+    ? { type: 'region' as const, regionPrefix }
+    : locationState.status === 'granted'
       ? { type: 'nearby' as const, lat: locationState.lat, lng: locationState.lng }
-      : regionPrefix
-        ? { type: 'region' as const, regionPrefix }
-        : null;
+      : null;
 
   const { pharmacies, loading, error, refetch } = usePharmacies(
     query ?? { type: 'region', regionPrefix: '__none__' },
@@ -55,19 +60,27 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
 
   const isRegionMode = query?.type === 'region';
 
-  // 지역 선택을 되돌린다. regionPrefix를 비우면 RegionPicker가 다시 나타나고,
-  // 동시에 위치 권한도 한 번 더 요청해 GPS가 가능해졌다면 주변 검색으로 돌아간다.
+  // 헤더의 위치 필을 눌렀을 때 실행된다. regionPrefix를 비우고 manualRegionOverride를
+  // 켜서 GPS가 granted 상태로 남아 있더라도 RegionPicker로 강제 진입시킨다.
+  // (GPS 재요청도 함께 트리거하지만, override 플래그가 켜져 있는 한 GPS 결과와 무관하게
+  // RegionPicker가 유지되며, 사용자가 실제로 지역을 고르면 override는 해제된다.)
   const changeRegion = () => {
     setRegionPrefix(null);
+    setManualRegionOverride(true);
     requestAgain();
+  };
+
+  const selectRegion = (region: string) => {
+    setRegionPrefix(region);
+    setManualRegionOverride(false);
   };
 
   if (locationState.status === 'loading') {
     return <Paragraph typography="st10">위치 정보를 확인하는 중이에요...</Paragraph>;
   }
 
-  if (locationState.status === 'fallback' && !regionPrefix) {
-    return <RegionPicker onSelect={setRegionPrefix} />;
+  if (!regionPrefix && (locationState.status === 'fallback' || manualRegionOverride)) {
+    return <RegionPicker onSelect={selectRegion} />;
   }
 
   return (
@@ -75,25 +88,24 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
       <Top
         title="언제나 약국"
         subtitleBottom="지금 문 연 약국을 찾아보세요."
-        // 지역 모드에서는 헤더 우측에 현재 지역을 보여주는 필/칩을 두고,
-        // 클릭하면 지역을 다시 고를 수 있게 한다(위치 권한 재시도 포함).
+        // 헤더 우측에는 항상 현재 위치/지역을 보여주는 필/칩을 둔다. 지역 모드에서는
+        // 선택된 지역명을, GPS 모드에서는 역지오코딩 없이 일반화된 라벨을 보여준다.
+        // 클릭하면 (모드와 무관하게) 지역을 직접 고를 수 있게 한다.
         right={
-          isRegionMode ? (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#fff',
-                border: '1px solid #E5E8EB',
-                borderRadius: 999,
-                padding: '4px 6px 4px 12px',
-              }}
-            >
-              <TextButton size="xsmall" variant="arrow" arrowPlacement="inline" onClick={changeRegion}>
-                {regionPrefix}
-              </TextButton>
-            </div>
-          ) : undefined
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#fff',
+              border: '1px solid #E5E8EB',
+              borderRadius: 999,
+              padding: '4px 6px 4px 12px',
+            }}
+          >
+            <TextButton size="xsmall" variant="arrow" arrowPlacement="inline" onClick={changeRegion}>
+              {isRegionMode ? regionPrefix : '내 위치 근처'}
+            </TextButton>
+          </div>
         }
       />
       <ComplianceNotice />
