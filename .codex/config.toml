@@ -1,0 +1,5 @@
+[mcp_servers.apps-in-toss]
+url = "https://developers-apps-in-toss.toss.im/~gitbook/mcp"
+
+[mcp_servers.apps-in-toss-console]
+url = "https://mcp.toss.im/adapters/apps-in-toss-console/mcp"
