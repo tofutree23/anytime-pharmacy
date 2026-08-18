@@ -19,7 +19,7 @@ type HomePageProps = {
 };
 
 export function HomePage({ onSelectPharmacy }: HomePageProps) {
-  const { state: locationState } = useLocation();
+  const { state: locationState, requestAgain: requestLocationAgain } = useLocation();
   const [searchState, dispatchSearch] = useReducer(homeSearchReducer, initialHomeSearchState);
   const { regionPrefix, manualRegionOverride, bounds, mapRevision } = searchState;
   // GPS 권한이 허용된 상태에서도 사용자가 헤더의 위치 필을 눌러 "지역 직접 선택" 흐름으로
@@ -109,12 +109,12 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   }
 
   if (!regionPrefix && (locationState.status === 'fallback' || manualRegionOverride)) {
-    return (
-      <RegionPicker
-        onSelect={selectRegion}
-        onUseCurrentLocation={locationState.status === 'granted' ? returnToCurrentLocation : undefined}
-      />
-    );
+    // granted 상태(헤더 필로 진입)면 이미 있는 좌표로 그냥 돌아가면 되지만,
+    // fallback 상태(거부/타임아웃)면 좌표가 없으므로 GPS 권한을 다시 요청해야 한다.
+    // 사용자가 처음엔 거부했더라도 마음이 바뀌어 다시 시도해볼 길을 열어둔다.
+    const onUseCurrentLocation =
+      locationState.status === 'granted' ? returnToCurrentLocation : requestLocationAgain;
+    return <RegionPicker onSelect={selectRegion} onUseCurrentLocation={onUseCurrentLocation} />;
   }
 
   return (
