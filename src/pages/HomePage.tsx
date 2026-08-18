@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies } from '../hooks/usePharmacies';
 import { usePharmaciesInBounds, type MapBounds } from '../hooks/usePharmaciesInBounds';
-import { RegionPicker } from '../components/RegionPicker';
 import { FilterBar, type FilterKey } from '../components/FilterBar';
 import { PharmacyCard } from '../components/PharmacyCard';
 import { PharmacyMap } from '../components/PharmacyMap';
@@ -13,6 +12,10 @@ import { BannerAd } from '../components/BannerAd';
 import { matchesActiveFilters } from '../domain/filterPharmacies';
 import type { Pharmacy } from '../domain/types';
 import { homeSearchReducer, initialHomeSearchState } from './homeSearchState';
+
+// 위치 권한이 없거나 GPS 요청이 실패한 사용자만 보는 화면이라(대다수는 지도/목록
+// 화면으로 바로 감), 초기 청크에서 빼서 필요할 때만 불러온다.
+const RegionPicker = lazy(() => import('../components/RegionPicker').then((m) => ({ default: m.RegionPicker })));
 
 type HomePageProps = {
   onSelectPharmacy: (pharmacy: Pharmacy) => void;
@@ -114,7 +117,11 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     // 사용자가 처음엔 거부했더라도 마음이 바뀌어 다시 시도해볼 길을 열어둔다.
     const onUseCurrentLocation =
       locationState.status === 'granted' ? returnToCurrentLocation : requestLocationAgain;
-    return <RegionPicker onSelect={selectRegion} onUseCurrentLocation={onUseCurrentLocation} />;
+    return (
+      <Suspense fallback={null}>
+        <RegionPicker onSelect={selectRegion} onUseCurrentLocation={onUseCurrentLocation} />
+      </Suspense>
+    );
   }
 
   return (

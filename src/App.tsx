@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { HomePage } from './pages/HomePage';
-import { PharmacyDetailPage } from './pages/PharmacyDetailPage';
 import type { Pharmacy } from './domain/types';
+
+// 초기 화면(HomePage)이 뜨는 데 필요한 JS만 먼저 받도록, 상세 페이지는 실제로
+// 필요해질 때(약국을 선택했을 때)만 별도 청크로 불러온다.
+const PharmacyDetailPage = lazy(() =>
+  import('./pages/PharmacyDetailPage').then((m) => ({ default: m.PharmacyDetailPage })),
+);
 
 function App() {
   const [selectedPharmacy, setSelectedPharmacy] = useState<Pharmacy | null>(null);
@@ -16,7 +21,9 @@ function App() {
         <HomePage onSelectPharmacy={setSelectedPharmacy} />
       </div>
       {selectedPharmacy && (
-        <PharmacyDetailPage pharmacy={selectedPharmacy} onBack={() => setSelectedPharmacy(null)} />
+        <Suspense fallback={null}>
+          <PharmacyDetailPage pharmacy={selectedPharmacy} onBack={() => setSelectedPharmacy(null)} />
+        </Suspense>
       )}
     </>
   );
