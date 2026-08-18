@@ -111,15 +111,24 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
     return <Paragraph typography="st10">위치 정보를 확인하는 중이에요...</Paragraph>;
   }
 
-  if (!regionPrefix && (locationState.status === 'fallback' || manualRegionOverride)) {
-    // granted 상태(헤더 필로 진입)면 이미 있는 좌표로 그냥 돌아가면 되지만,
-    // fallback 상태(거부/타임아웃)면 좌표가 없으므로 GPS 권한을 다시 요청해야 한다.
-    // 사용자가 처음엔 거부했더라도 마음이 바뀌어 다시 시도해볼 길을 열어둔다.
+  if (!regionPrefix && (locationState.status === 'fallback' || locationState.status === 'blocked' || manualRegionOverride)) {
+    // granted 상태(헤더 필로 진입)면 이미 있는 좌표로 그냥 돌아가면 되고, fallback 상태
+    // (거부/타임아웃)면 requestLocationAgain이 앱인토스 재요청 다이얼로그를 다시 띄운다.
+    // blocked 상태(OS 설정 자체에서 막힘)는 앱 안에서 재요청할 방법이 없으므로 버튼
+    // 자체를 없애고 RegionPicker가 설정 안내 문구를 보여주게 한다.
     const onUseCurrentLocation =
-      locationState.status === 'granted' ? returnToCurrentLocation : requestLocationAgain;
+      locationState.status === 'granted'
+        ? returnToCurrentLocation
+        : locationState.status === 'blocked'
+          ? undefined
+          : requestLocationAgain;
     return (
       <Suspense fallback={null}>
-        <RegionPicker onSelect={selectRegion} onUseCurrentLocation={onUseCurrentLocation} />
+        <RegionPicker
+          onSelect={selectRegion}
+          onUseCurrentLocation={onUseCurrentLocation}
+          locationBlocked={locationState.status === 'blocked'}
+        />
       </Suspense>
     );
   }
