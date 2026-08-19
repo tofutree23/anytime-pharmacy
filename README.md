@@ -1,5 +1,8 @@
 # 언제나 약국
 
+<img width="280" height="524" alt="IMG_1860" src="https://github.com/user-attachments/assets/68e5e39e-72bf-4358-ba0f-aee75ecdd269" />
+<img width="280" height="524" alt="IMG_1861" src="https://github.com/user-attachments/assets/6be2e632-6540-465e-b1bc-e49a7b05135a" />
+
 공공데이터(국립중앙의료원 전국 약국 정보 조회 서비스) 기반으로 심야/공휴일 영업 약국을 조회하는 앱인토스(App-in-Toss) 미니앱이에요. 순위·추천·예약·광고 없이 동일 기준으로 약국 정보만 제공해요.
 
 자세한 설계 배경은 [`docs/superpowers/specs/2026-08-16-anytime-pharmacy-design.md`](docs/superpowers/specs/2026-08-16-anytime-pharmacy-design.md)를 참고하세요.
