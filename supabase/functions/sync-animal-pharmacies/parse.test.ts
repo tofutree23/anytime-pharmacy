@@ -133,3 +133,11 @@ Deno.test("normalize: 숫자형 좌표도 정규화", () => {
 Deno.test("normalize: 혼합 날짜 형식은 licensedAt null", () => {
   assertEquals(normalizeAnimalPharmacy({ ...base, apvPermYmd: "2019-0302" }).licensedAt, null);
 });
+
+import { readId } from "./parse.ts";
+
+Deno.test("readId: 문자열은 trim, 숫자는 문자열, 객체는 빈 문자열", () => {
+  assertEquals(readId({ mgtNo: " A123 " }), "A123");
+  assertEquals(readId({ mgtNo: 123 }), "123");
+  assertEquals(readId({ mgtNo: {} }), "");
+});

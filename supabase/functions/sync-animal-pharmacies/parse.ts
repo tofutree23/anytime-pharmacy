@@ -50,8 +50,12 @@ export function isOperating(raw: RawAnimalPharmacyItem): boolean {
   return readString(raw, FIELDS.status) === OPERATING_STATUS;
 }
 
+export function readId(raw: RawAnimalPharmacyItem): string {
+  return readString(raw, FIELDS.id);
+}
+
 export function normalizeAnimalPharmacy(raw: RawAnimalPharmacyItem): NormalizedAnimalPharmacy {
-  const id = readString(raw, FIELDS.id);
+  const id = readId(raw);
   const name = readString(raw, FIELDS.name);
   const roadAddress = readString(raw, FIELDS.roadAddress);
   const lotAddress = readString(raw, FIELDS.lotAddress);
