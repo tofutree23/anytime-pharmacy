@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "deploy": "ait deploy",
     "test": "vitest run",
-    "test:functions": "deno test supabase/functions/sync-pharmacies/parse.test.ts"
+    "test:functions": "deno test supabase/functions/"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "3.6.0",
