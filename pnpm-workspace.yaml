@@ -1,0 +1,5 @@
+# cloudflared는 devtools 터널용 바이너리 다운로드, protobufjs는 안내 출력뿐이라 막는다.
+allowBuilds:
+  cloudflared: false
+  protobufjs: false
+saveExact: true

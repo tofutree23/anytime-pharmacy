@@ -39,11 +39,11 @@ React 19, TypeScript, Vite, Supabase(Postgres, Edge Functions, pg_cron), TanStac
 ## 개발
 
 ```bash
-npm run dev      # 개발 서버
-npm run build    # 타입체크 + 빌드
-npm run deploy   # 앱인토스 배포
-npm run test           # 프론트 도메인 로직 테스트 (Vitest)
-npm run test:functions # Edge Function 파싱/정규화 테스트 (Deno)
+pnpm dev      # 개발 서버
+pnpm build    # 타입체크 + 빌드
+pnpm run deploy # 앱인토스 배포
+pnpm test           # 프론트 도메인 로직 테스트 (Vitest)
+pnpm test:functions # Edge Function 파싱/정규화 테스트 (Deno)
 ```
 
 플랫폼 설정은 `apps-in-toss.config.ts`에서 관리해요.

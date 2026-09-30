@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "pnpm@12.6.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && ait build",
@@ -13,7 +14,7 @@
     "test:functions": "deno test supabase/functions/sync-pharmacies/parse.test.ts"
   },
   "dependencies": {
-    "@apps-in-toss/web-framework": "latest",
+    "@apps-in-toss/web-framework": "3.0.3",
     "@emotion/react": "11.14.0",
     "@supabase/postgrest-js": "2.112.3",
     "@tanstack/react-query": "5.101.4",
