@@ -5,8 +5,6 @@
 
 공공데이터(국립중앙의료원 전국 약국 정보 조회 서비스) 기반으로 심야/공휴일 영업 약국을 조회하는 앱인토스(App-in-Toss) 미니앱이에요. 순위·추천·예약·광고 없이 동일 기준으로 약국 정보만 제공해요.
 
-자세한 설계 배경은 [`docs/superpowers/specs/2026-08-16-anytime-pharmacy-design.md`](docs/superpowers/specs/2026-08-16-anytime-pharmacy-design.md)를 참고하세요.
-
 ## 핵심 기능
 
 - GPS 위치 기반 주변 약국 조회(거리순), 권한 거부 시 지역(시/도 → 시/군/구) 선택 폴백
