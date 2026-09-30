@@ -14,7 +14,7 @@
     "test:functions": "deno test supabase/functions/sync-pharmacies/parse.test.ts"
   },
   "dependencies": {
-    "@apps-in-toss/web-framework": "3.0.3",
+    "@apps-in-toss/web-framework": "3.6.0",
     "@emotion/react": "11.14.0",
     "@supabase/postgrest-js": "2.112.3",
     "@tanstack/react-query": "5.101.4",
@@ -25,7 +25,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@apps-in-toss/devtools": "3.0.3",
+    "@apps-in-toss/devtools": "3.6.0",
     "@babel/core": "7.29.7",
     "@rolldown/plugin-babel": "0.2.3",
     "@types/babel__core": "7.20.5",

@@ -167,8 +167,8 @@ importers:
   .:
     dependencies:
       '@apps-in-toss/web-framework':
-        specifier: 3.0.3
-        version: 3.0.3(typanion@3.14.0)(typescript@6.0.3)
+        specifier: 3.6.0
+        version: 3.6.0(typanion@3.14.0)(typescript@6.0.3)
       '@emotion/react':
         specifier: 11.14.0
         version: 11.14.0(@types/react@19.2.18)(react@19.2.8)
@@ -186,7 +186,7 @@ importers:
         version: 2.5.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@toss/tds-mobile-ait':
         specifier: 2.5.1
-        version: 2.5.1(@apps-in-toss/web-framework@3.0.3(typanion@3.14.0)(typescript@6.0.3))(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@toss/tds-mobile@2.5.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: 2.5.1(@apps-in-toss/web-framework@3.6.0(typanion@3.14.0)(typescript@6.0.3))(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@toss/tds-mobile@2.5.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -195,8 +195,8 @@ importers:
         version: 19.2.8(react@19.2.8)
     devDependencies:
       '@apps-in-toss/devtools':
-        specifier: 3.0.3
-        version: 3.0.3(@apps-in-toss/web-framework@3.0.3(typanion@3.14.0)(typescript@6.0.3))(rolldown@1.2.4)(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0))
+        specifier: 3.6.0
+        version: 3.6.0(@apps-in-toss/web-framework@3.6.0(typanion@3.14.0)(typescript@6.0.3))(rolldown@1.2.4)(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0))
       '@babel/core':
         specifier: 7.29.7
         version: 7.29.7
@@ -243,12 +243,12 @@ packages:
     resolution: {integrity: sha512-1no0CXOhPEeSCrGduT37KMmCqA6irhowXa0S7AaPHb4RQSHGioR3wvvD7HHBCaUriMYs0EvtqRJfOgYd0ycKlQ==}
     engines: {node: '>=24'}
 
-  '@apps-in-toss/cli@3.0.3':
-    resolution: {integrity: sha512-1537v+CX13H+DX2Q8sP+kmfG6djb4jxUlT4IS8Dk3USaEbK+WY5H2xalG9VQTMILDxeI+HgWruPmL4ra+oDLJA==}
+  '@apps-in-toss/cli@3.6.0':
+    resolution: {integrity: sha512-2XK3uvMtqbEJQ3Pke8afytQP1gLsk57O8u23K3mQBNi2J9C2fdtCguMYZl/LUxUcUb1onQklO0wHbIz1UTpEdw==}
     hasBin: true
 
-  '@apps-in-toss/devtools@3.0.3':
-    resolution: {integrity: sha512-oM6uGFl91FsvHTNU2NjIHrQCoz4bLVq+WpG1cW4mRvZid6G8qQ3MNW02N6qxcmocn1yI29NKtUS55rBetXXXTg==}
+  '@apps-in-toss/devtools@3.6.0':
+    resolution: {integrity: sha512-50+U8HVPVUMOW7penVKfPv7KJTbBQrhA0M+OASLPPgW+ZoziIUO65MHD6P1wURg9QLbsT9tuD/PnT1vn8GcxRw==}
     engines: {node: '>=24'}
     peerDependencies:
       '@apps-in-toss/web-framework': '>=2.6.0 <3.0.0 || >=3.0.1 <4.0.0'
@@ -256,8 +256,8 @@ packages:
       '@apps-in-toss/web-framework':
         optional: true
 
-  '@apps-in-toss/web-framework@3.0.3':
-    resolution: {integrity: sha512-OF97r3wGujYDcK3bTjyLda9qFO6QUTXyoFwGE7gfXLY6fwfSw0NUT7UTn3lgunpwdlXaTJ39+f6ENxV05skkhg==}
+  '@apps-in-toss/web-framework@3.6.0':
+    resolution: {integrity: sha512-k8v3RKO4Lf749ZUyGRB0cx4/gW8IX/9xda/W/FhTsy1UGFLX11Qs+tvRXQYljKPYWc/SVMsTEcBLgq/1quDzMA==}
     hasBin: true
 
   '@babel/code-frame@7.29.7':
@@ -888,14 +888,14 @@ packages:
   '@vitest/utils@4.1.10':
     resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
 
-  '@webview-bridge/types@1.7.9':
-    resolution: {integrity: sha512-Xqi6opGJB+LVpyb+2ZxqpKv2ox2/cnkbp0G2OMCnSNi/D6U5HkMsSbaW8GrXGEVwbybltK7uLKN+el1CqEGiRg==}
+  '@webview-bridge/types@1.7.10':
+    resolution: {integrity: sha512-s5JfIzkKo6SIMErw1u/UVHM8/rh4kRAuaQPeSk3iXH2momsv4GFY9U3NKUr+Wq2V4Nalrzx0dNxqFad6UcvX/Q==}
 
-  '@webview-bridge/utils@1.7.9':
-    resolution: {integrity: sha512-qTgppsE7ydroMJTeIpLiS7TIdKmdw2z6CtakPDutivkG2pztKa8CCB8ap1UkUoaE6RHQS1XeEBEII3HasW/WRw==}
+  '@webview-bridge/utils@1.7.10':
+    resolution: {integrity: sha512-otH5LE6P7F3nVZUqgxVcmNVsMioZBx6l+Djyl1cNwIBL3607b4Y5V1mt8lTSu6byCly2ADx6kxM2oldxBvgZzw==}
 
-  '@webview-bridge/web@1.7.9':
-    resolution: {integrity: sha512-CxOOGpE4yOwdpm15S6i/KagwYXX5W6CedPRKor+ublk8sDkbotWImSdO99L7Z1wEoSic0EF3fN3MeU7dObBG3w==}
+  '@webview-bridge/web@1.7.10':
+    resolution: {integrity: sha512-E38r69W13RwizgtbQwMh7qf6Fk3VW0YzeasYpx7+RhNSufegCrIAtwEaGHLNJsnu2X0Od38gNOI4iWtTOSpFdg==}
 
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
@@ -956,10 +956,6 @@ packages:
   clone-deep@4.0.1:
     resolution: {integrity: sha512-neHB9xuzh/wk0dIHweyAXv2aPGZIVk3pLMe+/RNzINf17fe0OG96QroktYAUm7SM1PBnzTabaLboqqxDyMU+SQ==}
     engines: {node: '>=6'}
-
-  cloudflared@0.7.3:
-    resolution: {integrity: sha512-dR4QMS4PbD287QqOV/vAoE1BcQCXphLOVrN9vjNUgkLrPDA5qxn9Dz0VId0P7/Czj4Mxu3hoLgbrVx5OtOWr5Q==}
-    hasBin: true
 
   commondir@1.0.1:
     resolution: {integrity: sha512-W9pAhw0ja1Edb5GVdIF1mjZw/ASI0AlShXM83UUGe2DVr5TdAPEA1OA8m/g8zWp9x6On7gqufY+FatDbC3MDQg==}
@@ -1358,10 +1354,6 @@ packages:
     resolution: {integrity: sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==}
     engines: {node: '>=12.0.0'}
 
-  qrcode-terminal@0.12.0:
-    resolution: {integrity: sha512-EXtzRZmC+YGmGlDFbXKxQiMZNwCLEO6BANKXG4iCtSIM0yqc/pappSx3RIKr4r0uh5JsBckOXeKrB3Iz7mdQpQ==}
-    hasBin: true
-
   rc9@3.0.1:
     resolution: {integrity: sha512-gMDyleLWVE+i6Sgtc0QbbY6pEKqYs97NGi6isHQPqYlLemPoO8dxQ3uGi0f4NiP98c+jMW6cG1Kx9dDwfvqARQ==}
 
@@ -1659,13 +1651,14 @@ snapshots:
       '@apps-in-toss/ait-format-proto': 1.0.0
       fflate: 0.8.3
 
-  '@apps-in-toss/cli@3.0.3(typanion@3.14.0)':
+  '@apps-in-toss/cli@3.6.0(typanion@3.14.0)':
     dependencies:
       '@apps-in-toss/ait-format': 1.0.0
       '@clack/prompts': 1.7.0
       c12: 3.3.4
       clipanion: 4.0.0-rc.4(typanion@3.14.0)
       jscodeshift: 17.4.0
+      picocolors: 1.1.1
       uuidv7: 1.2.1
     transitivePeerDependencies:
       - '@babel/preset-env'
@@ -1673,13 +1666,11 @@ snapshots:
       - supports-color
       - typanion
 
-  '@apps-in-toss/devtools@3.0.3(@apps-in-toss/web-framework@3.0.3(typanion@3.14.0)(typescript@6.0.3))(rolldown@1.2.4)(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0))':
+  '@apps-in-toss/devtools@3.6.0(@apps-in-toss/web-framework@3.6.0(typanion@3.14.0)(typescript@6.0.3))(rolldown@1.2.4)(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0))':
     dependencies:
-      cloudflared: 0.7.3
-      qrcode-terminal: 0.12.0
       unplugin: 3.3.0(rolldown@1.2.4)(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0))
     optionalDependencies:
-      '@apps-in-toss/web-framework': 3.0.3(typanion@3.14.0)(typescript@6.0.3)
+      '@apps-in-toss/web-framework': 3.6.0(typanion@3.14.0)(typescript@6.0.3)
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@rspack/core'
@@ -1691,10 +1682,10 @@ snapshots:
       - vite
       - webpack
 
-  '@apps-in-toss/web-framework@3.0.3(typanion@3.14.0)(typescript@6.0.3)':
+  '@apps-in-toss/web-framework@3.6.0(typanion@3.14.0)(typescript@6.0.3)':
     dependencies:
-      '@apps-in-toss/cli': 3.0.3(typanion@3.14.0)
-      '@webview-bridge/web': 1.7.9
+      '@apps-in-toss/cli': 3.6.0(typanion@3.14.0)
+      '@webview-bridge/web': 1.7.10
       semver: 7.8.5
       valibot: 1.4.2(typescript@6.0.3)
     transitivePeerDependencies:
@@ -2198,9 +2189,9 @@ snapshots:
 
   '@toss/tds-colors@0.1.0': {}
 
-  '@toss/tds-mobile-ait@2.5.1(@apps-in-toss/web-framework@3.0.3(typanion@3.14.0)(typescript@6.0.3))(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@toss/tds-mobile@2.5.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@toss/tds-mobile-ait@2.5.1(@apps-in-toss/web-framework@3.6.0(typanion@3.14.0)(typescript@6.0.3))(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@toss/tds-mobile@2.5.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@apps-in-toss/web-framework': 3.0.3(typanion@3.14.0)(typescript@6.0.3)
+      '@apps-in-toss/web-framework': 3.6.0(typanion@3.14.0)(typescript@6.0.3)
       '@emotion/react': 11.14.0(@types/react@19.2.18)(react@19.2.8)
       '@toss/tds-colors': 0.1.0
       '@toss/tds-mobile': 2.5.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -2306,14 +2297,14 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.1
 
-  '@webview-bridge/types@1.7.9': {}
+  '@webview-bridge/types@1.7.10': {}
 
-  '@webview-bridge/utils@1.7.9': {}
+  '@webview-bridge/utils@1.7.10': {}
 
-  '@webview-bridge/web@1.7.9':
+  '@webview-bridge/web@1.7.10':
     dependencies:
-      '@webview-bridge/types': 1.7.9
-      '@webview-bridge/utils': 1.7.9
+      '@webview-bridge/types': 1.7.10
+      '@webview-bridge/utils': 1.7.10
 
   assertion-error@2.0.1: {}
 
@@ -2377,8 +2368,6 @@ snapshots:
       is-plain-object: 2.0.4
       kind-of: 6.0.3
       shallow-clone: 3.0.1
-
-  cloudflared@0.7.3: {}
 
   commondir@1.0.1: {}
 
@@ -2714,8 +2703,6 @@ snapshots:
       '@protobufjs/utf8': 1.1.2
       '@types/node': 24.13.3
       long: 5.3.2
-
-  qrcode-terminal@0.12.0: {}
 
   rc9@3.0.1:
     dependencies:
