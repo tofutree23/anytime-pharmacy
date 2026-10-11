@@ -2,15 +2,15 @@
 import { epsg5174ToWgs84 } from "./coord.ts";
 
 export const FIELDS = {
-  id: "mgtNo",
-  name: "bplcNm",
-  status: "trdStateGbn",
-  roadAddress: "rdnWhlAddr",
-  lotAddress: "siteWhlAddr",
-  phone: "siteTel",
-  licensedAt: "apvPermYmd",
-  x: "x",
-  y: "y",
+  id: "MNG_NO",
+  name: "BPLC_NM",
+  status: "SALS_STTS_CD",
+  roadAddress: "ROAD_NM_ADDR",
+  lotAddress: "LOTNO_ADDR",
+  phone: "TELNO",
+  licensedAt: "LCPMT_YMD",
+  x: "CRD_INFO_X",
+  y: "CRD_INFO_Y",
 } as const;
 export const OPERATING_STATUS = "01";
 

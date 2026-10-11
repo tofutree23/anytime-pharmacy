@@ -1,17 +1,31 @@
 import { assertEquals, assertThrows, assertAlmostEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { extractPage, isOperating, normalizeAnimalPharmacy } from "./parse.ts";
+import { extractPage, FIELDS, isOperating, normalizeAnimalPharmacy } from "./parse.ts";
 
 const base = {
-  mgtNo: "3000000-117-2019-00001",
-  bplcNm: "행복동물약국",
-  trdStateGbn: "01",
-  rdnWhlAddr: "서울특별시 중구 세종대로 110",
-  siteWhlAddr: "서울특별시 중구 태평로1가 31",
-  siteTel: "02-123-4567",
-  apvPermYmd: "2019-03-02",
-  x: "197984.0",
-  y: "451557.164",
+  MNG_NO: "3000000-117-2019-00001",
+  BPLC_NM: "행복동물약국",
+  SALS_STTS_CD: "01",
+  ROAD_NM_ADDR: "서울특별시 중구 세종대로 110",
+  LOTNO_ADDR: "서울특별시 중구 태평로1가 31",
+  TELNO: "02-123-4567",
+  LCPMT_YMD: "2019-03-02",
+  CRD_INFO_X: "197984.0",
+  CRD_INFO_Y: "451557.164",
 };
+
+Deno.test("운영 API의 실제 필드명을 사용한다", () => {
+  assertEquals(FIELDS, {
+    id: "MNG_NO",
+    name: "BPLC_NM",
+    status: "SALS_STTS_CD",
+    roadAddress: "ROAD_NM_ADDR",
+    lotAddress: "LOTNO_ADDR",
+    phone: "TELNO",
+    licensedAt: "LCPMT_YMD",
+    x: "CRD_INFO_X",
+    y: "CRD_INFO_Y",
+  });
+});
 
 Deno.test("정상 행을 정규화하고 좌표를 WGS84로 바꾼다", () => {
   const r = normalizeAnimalPharmacy(base);
@@ -25,32 +39,32 @@ Deno.test("정상 행을 정규화하고 좌표를 WGS84로 바꾼다", () => {
 });
 
 Deno.test("도로명 주소가 비면 지번 주소를 쓴다", () => {
-  assertEquals(normalizeAnimalPharmacy({ ...base, rdnWhlAddr: "" }).address, "서울특별시 중구 태평로1가 31");
+  assertEquals(normalizeAnimalPharmacy({ ...base, ROAD_NM_ADDR: "" }).address, "서울특별시 중구 태평로1가 31");
 });
 
 Deno.test("전화번호가 비거나 공백이면 null", () => {
-  assertEquals(normalizeAnimalPharmacy({ ...base, siteTel: " " }).phone, null);
+  assertEquals(normalizeAnimalPharmacy({ ...base, TELNO: " " }).phone, null);
 });
 
 Deno.test("인허가일자 형식이 이상하면 null", () => {
-  assertEquals(normalizeAnimalPharmacy({ ...base, apvPermYmd: "" }).licensedAt, null);
+  assertEquals(normalizeAnimalPharmacy({ ...base, LCPMT_YMD: "" }).licensedAt, null);
 });
 
 Deno.test("관리번호, 이름, 주소 둘 다 없으면 throw", () => {
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, mgtNo: "" }));
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, bplcNm: "" }));
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, rdnWhlAddr: "", siteWhlAddr: "" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, MNG_NO: "" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, BPLC_NM: "" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, ROAD_NM_ADDR: "", LOTNO_ADDR: "" }));
 });
 
 Deno.test("좌표가 없거나 국내 범위를 벗어나면 throw", () => {
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, x: "", y: "" }));
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, x: "0", y: "0" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, CRD_INFO_X: "", CRD_INFO_Y: "" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, CRD_INFO_X: "0", CRD_INFO_Y: "0" }));
 });
 
 Deno.test("영업상태 01만 영업 중으로 본다", () => {
   assertEquals(isOperating(base), true);
   for (const code of ["02", "03", "04", "", undefined]) {
-    assertEquals(isOperating({ ...base, trdStateGbn: code }), false);
+    assertEquals(isOperating({ ...base, SALS_STTS_CD: code }), false);
   }
 });
 
@@ -89,20 +103,20 @@ Deno.test("extractPage: totalCount가 있고 items가 빈 문자열이면 빈 �
 });
 
 Deno.test("isOperating: 배열 값은 false", () => {
-  assertEquals(isOperating({ ...base, trdStateGbn: ["01"] }), false);
+  assertEquals(isOperating({ ...base, SALS_STTS_CD: ["01"] }), false);
 });
 
 Deno.test("normalize: 객체 값 필드는 빈 값으로 보고 throw", () => {
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, mgtNo: {} }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, MNG_NO: {} }));
 });
 
 Deno.test("normalize: 국내 범위 밖 좌표는 throw", () => {
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, x: "1000000", y: "1000000" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, CRD_INFO_X: "1000000", CRD_INFO_Y: "1000000" }));
 });
 
 Deno.test("normalize: 존재하지 않는 날짜는 licensedAt null", () => {
   for (const d of ["20191399", "2019-02-30"]) {
-    assertEquals(normalizeAnimalPharmacy({ ...base, apvPermYmd: d }).licensedAt, null);
+    assertEquals(normalizeAnimalPharmacy({ ...base, LCPMT_YMD: d }).licensedAt, null);
   }
 });
 
@@ -117,27 +131,27 @@ Deno.test("extractPage: totalCount 문자열은 숫자만 허용", () => {
 });
 
 Deno.test("normalize: 위도만 범위 밖이면 throw", () => {
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, x: "200000", y: "1500000" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, CRD_INFO_X: "200000", CRD_INFO_Y: "1500000" }));
 });
 
 Deno.test("normalize: 경도만 범위 밖이면 throw", () => {
-  assertThrows(() => normalizeAnimalPharmacy({ ...base, x: "800000", y: "500000" }));
+  assertThrows(() => normalizeAnimalPharmacy({ ...base, CRD_INFO_X: "800000", CRD_INFO_Y: "500000" }));
 });
 
 Deno.test("normalize: 숫자형 좌표도 정규화", () => {
-  const r = normalizeAnimalPharmacy({ ...base, x: 197984.0, y: 451557.164 });
+  const r = normalizeAnimalPharmacy({ ...base, CRD_INFO_X: 197984.0, CRD_INFO_Y: 451557.164 });
   assertAlmostEquals(r.lat, 37.5662952, 0.00002);
   assertAlmostEquals(r.lng, 126.9779692, 0.00002);
 });
 
 Deno.test("normalize: 혼합 날짜 형식은 licensedAt null", () => {
-  assertEquals(normalizeAnimalPharmacy({ ...base, apvPermYmd: "2019-0302" }).licensedAt, null);
+  assertEquals(normalizeAnimalPharmacy({ ...base, LCPMT_YMD: "2019-0302" }).licensedAt, null);
 });
 
 import { readId } from "./parse.ts";
 
 Deno.test("readId: 문자열은 trim, 숫자는 문자열, 객체는 빈 문자열", () => {
-  assertEquals(readId({ mgtNo: " A123 " }), "A123");
-  assertEquals(readId({ mgtNo: 123 }), "123");
-  assertEquals(readId({ mgtNo: {} }), "");
+  assertEquals(readId({ MNG_NO: " A123 " }), "A123");
+  assertEquals(readId({ MNG_NO: 123 }), "123");
+  assertEquals(readId({ MNG_NO: {} }), "");
 });

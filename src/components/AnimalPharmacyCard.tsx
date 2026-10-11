@@ -11,12 +11,22 @@ export function AnimalPharmacyCard({ pharmacy, onClick }: AnimalPharmacyCardProp
   const bottom = pharmacy.distanceMeters != null
     ? `${formatDistance(pharmacy.distanceMeters)}, ${pharmacy.address}`
     : pharmacy.address;
+  const contents = pharmacy.phone
+    ? (
+      <ListRow.Texts
+        type="3RowTypeA"
+        top={pharmacy.name}
+        middle={bottom}
+        bottom={pharmacy.phone}
+      />
+    )
+    : <ListRow.Texts type="2RowTypeA" top={pharmacy.name} bottom={bottom} />;
 
   return (
     <ListRow
       border="none"
       style={{ background: '#fff', borderRadius: 16, overflow: 'hidden' }}
-      contents={<ListRow.Texts type="2RowTypeA" top={pharmacy.name} bottom={bottom} />}
+      contents={contents}
       withTouchEffect
       onClick={() => onClick(pharmacy)}
     />
