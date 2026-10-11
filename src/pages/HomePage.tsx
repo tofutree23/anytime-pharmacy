@@ -1,16 +1,17 @@
 import { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Top, Paragraph, ChipItem, ChipItemRightIcon, List } from '@toss/tds-mobile';
+import { Top, Paragraph, ChipItem, ChipItemRightIcon, List, SegmentedControl } from '@toss/tds-mobile';
 import { useLocation } from '../hooks/useLocation';
 import { usePharmacies } from '../hooks/usePharmacies';
 import { usePharmaciesInBounds, type MapBounds } from '../hooks/usePharmaciesInBounds';
 import { FilterBar, type FilterKey } from '../components/FilterBar';
 import { PharmacyCard } from '../components/PharmacyCard';
+import { AnimalPharmacyCard } from '../components/AnimalPharmacyCard';
 import { PharmacyMap } from '../components/PharmacyMap';
 import { ComplianceNotice } from '../components/ComplianceNotice';
 import { BannerAd } from '../components/BannerAd';
 import { matchesActiveFilters } from '../domain/filterPharmacies';
-import type { Pharmacy } from '../domain/types';
+import type { Place, PlaceKind } from '../domain/types';
 import { homeSearchReducer, initialHomeSearchState } from './homeSearchState';
 
 // 위치 권한이 없거나 GPS 요청이 실패한 사용자만 보는 화면이라(대다수는 지도/목록
@@ -18,10 +19,10 @@ import { homeSearchReducer, initialHomeSearchState } from './homeSearchState';
 const RegionPicker = lazy(() => import('../components/RegionPicker').then((m) => ({ default: m.RegionPicker })));
 
 type HomePageProps = {
-  onSelectPharmacy: (pharmacy: Pharmacy) => void;
+  onSelectPlace: (place: Place) => void;
 };
 
-export function HomePage({ onSelectPharmacy }: HomePageProps) {
+export function HomePage({ onSelectPlace }: HomePageProps) {
   const { state: locationState, requestAgain: requestLocationAgain } = useLocation();
   const [searchState, dispatchSearch] = useReducer(homeSearchReducer, initialHomeSearchState);
   const { regionPrefix, manualRegionOverride, bounds, mapRevision } = searchState;
@@ -29,6 +30,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   // 강제 진입할 수 있게 하는 플래그. 이게 없으면 GPS가 granted인 동안은 regionPrefix를
   // null로 되돌려도 query가 즉시 nearby로 재계산되어 RegionPicker가 전혀 보이지 않는다.
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
+  const [kind, setKind] = useState<PlaceKind>('pharmacy');
 
   // regionPrefix가 있으면(사용자가 명시적으로 지역을 골랐다면) GPS가 granted이더라도
   // 지역 검색을 우선한다. GPS 우선순위는 regionPrefix가 비어 있을 때만 적용된다.
@@ -44,8 +46,8 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   // 범위 기반 재검색을 적용할 기준점이 없다). GPS(내 주변) 모드: 지도가 실제로
   // 보여주는 범위에 있는 약국만, "이 지역 재검색" 버튼(최초 1회는 자동)으로
   // 가져온다 — 지도를 조금만 움직여도 핀이 계속 늘어나는 문제를 막기 위함.
-  const regionResult = usePharmacies(query?.type === 'region' ? query : { type: 'region', regionPrefix: '__none__' });
-  const boundsResult = usePharmaciesInBounds(bounds);
+  const regionResult = usePharmacies(kind, query?.type === 'region' ? query : { type: 'region', regionPrefix: '__none__' });
+  const boundsResult = usePharmaciesInBounds(kind, bounds);
   const { pharmacies, loading, error, refetch } = isRegionMode ? regionResult : boundsResult;
 
   const toggleFilter = (key: FilterKey) => {
@@ -53,21 +55,21 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   };
 
   // 목록과 지도가 항상 정확히 같은 배열을 보도록, 필터링을 이 한 곳에서만 하고
-  // 그 결과(filteredPharmacies)를 목록·지도 양쪽에 그대로 내려준다.
-  const filteredPharmacies = useMemo(() => {
+  // 그 결과(filteredPlaces)를 목록·지도 양쪽에 그대로 내려준다.
+  const filteredPlaces = useMemo(() => {
     const now = new Date();
-    return pharmacies.filter((pharmacy) => matchesActiveFilters(pharmacy, activeFilters, now));
+    return pharmacies.filter((place) => place.kind === 'animal' || matchesActiveFilters(place, activeFilters, now));
   }, [pharmacies, activeFilters]);
 
   // 지도는 화면에 고정하고, 약국 카드 목록만 자체 스크롤 컨테이너 안에서 스크롤되도록
-  // 한다. 목록은 한 번에 다 불러온 filteredPharmacies 전체에 대해 화면에 보이는
+  // 한다. 목록은 한 번에 다 불러온 filteredPlaces 전체에 대해 화면에 보이는
   // 범위만 실제로 렌더링한다(무한스크롤로 데이터를 더 당겨오는 것이 아니라, 이미
   // 가진 데이터 중 보여줄 것만 가상화). 카드 높이가 주소 줄바꿈 등으로 조금씩
   // 달라질 수 있어 estimateSize는 대략값만 주고, 각 아이템에 measureElement ref를
   // 달아 실제 렌더된 높이로 보정한다.
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
-    count: filteredPharmacies.length,
+    count: filteredPlaces.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => 92,
     overscan: 6,
@@ -76,14 +78,16 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
   useEffect(() => {
     if (!scrollContainerRef.current) return;
     scrollContainerRef.current.scrollTop = 0;
-  }, [activeFilters]);
+  }, [activeFilters, kind]);
 
   // 목록이 비어 있을 때의 안내 문구. 원인(필터 vs 지역/범위 자체에 데이터 없음)에 따라
   // 다른 문구를 보여줘야 사용자가 다음에 뭘 해야 할지 알 수 있다.
+  const label = kind === 'animal' ? '동물약국' : '약국';
+  const filtersApplied = kind === 'pharmacy' && activeFilters.length > 0;
   const emptyStateMessage =
-    activeFilters.length > 0 ? '선택한 조건에 맞는 약국이 없어요.' : '이 지역에 등록된 약국이 없어요.';
+    filtersApplied ? '선택한 조건에 맞는 약국이 없어요.' : `이 지역에 등록된 ${label}이 없어요.`;
   const emptyStateHint =
-    activeFilters.length > 0
+    filtersApplied
       ? '필터를 조정해보세요.'
       : isRegionMode
         ? '다른 지역을 선택해보세요.'
@@ -160,7 +164,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             }
             subtitleBottom={
               <Paragraph typography="st11" color="#4E5968">
-                지금 문 연 약국을 찾아보세요.
+                {kind === 'pharmacy' ? '지금 문 연 약국을 찾아보세요.' : '가까운 동물약국을 찾아보세요.'}
               </Paragraph>
             }
             // 헤더 우측에는 항상 현재 위치/지역을 보여주는 필/칩을 둔다. 지역 모드에서는
@@ -174,20 +178,26 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
           />
         </div>
         <ComplianceNotice />
-        <FilterBar active={activeFilters} onToggle={toggleFilter} />
+        <div style={{ padding: '0 16px 8px' }}>
+          <SegmentedControl value={kind} onChange={(v) => setKind(v as PlaceKind)} size="large">
+            <SegmentedControl.Item value="pharmacy">약국</SegmentedControl.Item>
+            <SegmentedControl.Item value="animal">동물약국</SegmentedControl.Item>
+          </SegmentedControl>
+        </div>
+        {kind === 'pharmacy' && <FilterBar active={activeFilters} onToggle={toggleFilter} />}
         <div style={{ padding: '0 16px', marginTop: 12, marginBottom: 16 }}>
-          {/* 지도와 목록이 완전히 같은 filteredPharmacies를 받는다 — 목록에만 있고
+          {/* 지도와 목록이 완전히 같은 filteredPlaces를 받는다 — 목록에만 있고
               지도엔 안 보이는 항목이 생기지 않는다. 마커 개수 상한은 PharmacyMap
               내부의 MAX_MARKERS가 방어적으로 처리한다. */}
           <PharmacyMap
             key={mapRevision}
-            pharmacies={filteredPharmacies}
+            pharmacies={filteredPlaces}
             center={locationState.status === 'granted' ? { lat: locationState.lat, lng: locationState.lng } : null}
             // 지역을 선택하면 그 지역 약국 목록의 첫 번째 좌표로 지도를 이동시킨다(정렬
-            // 기준 없이 여러 개면 배열 첫 요소로). 필터로 걸러진(filteredPharmacies) 값을
+            // 기준 없이 여러 개면 배열 첫 요소로). 필터로 걸러진(filteredPlaces) 값을
             // 써서, 화면에 보이는 첫 약국으로 이동시킨다.
-            focusCenter={isRegionMode && filteredPharmacies[0] ? { lat: filteredPharmacies[0].lat, lng: filteredPharmacies[0].lng } : null}
-            onSelectPharmacy={onSelectPharmacy}
+            focusCenter={isRegionMode && filteredPlaces[0] ? { lat: filteredPlaces[0].lat, lng: filteredPlaces[0].lng } : null}
+            onSelectPharmacy={onSelectPlace}
             // 지역 모드에서는 지도 범위 재검색을 적용하지 않는다(좌표 기준점이 없음) —
             // null을 넘기면 PharmacyMap이 idle 추적 자체를 하지 않아 버튼도 뜨지 않고,
             // 배경에서 불필요한 bounds 쿼리도 발생시키지 않는다.
@@ -205,7 +215,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
         {loading && (
           <div style={{ padding: '48px 16px', textAlign: 'center' }}>
             <Paragraph typography="st10" color="#8B95A1">
-              약국 정보를 불러오는 중이에요...
+              {label} 정보를 불러오는 중이에요...
             </Paragraph>
           </div>
         )}
@@ -221,7 +231,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
         )}
         {/* 빈 상태는 지도 아래, 목록이 있었을 자리에 그대로 두고 충분한 여백을 준다 —
             필터/지도 사이에 끼워 두면(과거 배치) 눈에 잘 안 띄고 어색해 보였다. */}
-        {!loading && !error && filteredPharmacies.length === 0 && (
+        {!loading && !error && filteredPlaces.length === 0 && (
           <div style={{ padding: '48px 16px', textAlign: 'center' }}>
             <Paragraph typography="st9" fontWeight="bold" color="#4E5968">
               {emptyStateMessage}
@@ -231,7 +241,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             </Paragraph>
           </div>
         )}
-        {!loading && !error && filteredPharmacies.length > 0 && (
+        {!loading && !error && filteredPlaces.length > 0 && (
           <List
             style={{
               position: 'relative',
@@ -242,7 +252,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
             }}
           >
             {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-              const pharmacy = filteredPharmacies[virtualItem.index];
+              const pharmacy = filteredPlaces[virtualItem.index];
               return (
                 <div
                   key={pharmacy.id}
@@ -257,7 +267,7 @@ export function HomePage({ onSelectPharmacy }: HomePageProps) {
                     paddingBottom: 12,
                   }}
                 >
-                  <PharmacyCard pharmacy={pharmacy} onClick={onSelectPharmacy} />
+                  {pharmacy.kind === 'animal' ? <AnimalPharmacyCard pharmacy={pharmacy} onClick={onSelectPlace} /> : <PharmacyCard pharmacy={pharmacy} onClick={onSelectPlace} />}
                 </div>
               );
             })}

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useKakaoMap } from '../hooks/useKakaoMap';
-import type { Pharmacy } from '../domain/types';
+import type { Place } from '../domain/types';
 import type { MapBounds } from '../hooks/usePharmaciesInBounds';
 
 type PharmacyMapProps = {
-  pharmacies: Pharmacy[];
+  pharmacies: Place[];
   center: { lat: number; lng: number } | null;
-  onSelectPharmacy: (pharmacy: Pharmacy) => void;
+  onSelectPharmacy: (place: Place) => void;
   // 지도가 움직일 때마다 자동으로 재조회하지 않고, 사용자가 "이 지역 재검색"
   // 버튼을 눌렀을 때만(그리고 최초 1회는 자동으로) 호출된다. null이면(지역 선택
   // 모드처럼 좌표 기준점이 없는 경우) idle 추적 자체를 하지 않아 버튼도 뜨지 않는다.

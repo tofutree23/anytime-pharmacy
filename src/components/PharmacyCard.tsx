@@ -1,17 +1,12 @@
 import { ListRow, Badge } from '@toss/tds-mobile';
 import type { Pharmacy } from '../domain/types';
 import { isOpenNow } from '../domain/businessHours';
+import { formatDistance } from '../domain/formatDistance';
 
 type PharmacyCardProps = {
   pharmacy: Pharmacy;
   onClick: (pharmacy: Pharmacy) => void;
 };
-
-/** 1km 미만은 미터, 그 이상은 소수점 한 자리 km로 표기한다. */
-function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters)}m`;
-  return `${(meters / 1000).toFixed(1)}km`;
-}
 
 export function PharmacyCard({ pharmacy, onClick }: PharmacyCardProps) {
   const open = isOpenNow(pharmacy.dutyTime, new Date());

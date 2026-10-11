@@ -19,6 +19,7 @@ export type PharmacyRow = {
 
 export function toPharmacy(row: PharmacyRow): Pharmacy {
   return {
+    kind: 'pharmacy',
     id: row.id,
     name: row.name,
     address: row.address,

@@ -11,16 +11,28 @@ export type DutyTime = {
   holiday: DayHours | null;
 };
 
-export type Pharmacy = {
+export type PlaceBase = {
   id: string;
   name: string;
   address: string;
   phone: string | null;
   lat: number;
   lng: number;
-  dutyTime: DutyTime;
   source: string;
   updatedAt: string;
   /** 기준 위치(GPS)로부터의 거리(m). 지역 조회처럼 기준점이 없으면 null. */
   distanceMeters: number | null;
 };
+
+export type Pharmacy = PlaceBase & {
+  kind: 'pharmacy';
+  dutyTime: DutyTime;
+};
+
+export type AnimalPharmacy = PlaceBase & {
+  kind: 'animal';
+};
+
+export type Place = Pharmacy | AnimalPharmacy;
+
+export type PlaceKind = Place['kind'];

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import type { PlaceKind } from '../domain/types';
+import { PLACE_SOURCES, placeQueryKeys, rowsToPlaces } from '../lib/placeSources';
 import { supabase } from '../lib/supabaseClient';
-import { toPharmacy, type PharmacyRow } from '../lib/pharmacyRow';
 
 export type PharmacyQuery = { type: 'region'; regionPrefix: string };
 
@@ -10,28 +11,28 @@ export type PharmacyQuery = { type: 'region'; regionPrefix: string };
 // 전체를 한 번에 가져온다.
 const FETCH_LIMIT = 500;
 
-async function fetchAll(query: PharmacyQuery): Promise<PharmacyRow[]> {
+async function fetchAll(kind: PlaceKind, query: PharmacyQuery): Promise<unknown[]> {
   const { data, error } = await supabase
-    .from('pharmacies')
+    .from(PLACE_SOURCES[kind].table)
     .select('*')
     .ilike('address', `${query.regionPrefix}%`)
     .order('name', { ascending: true })
     .range(0, FETCH_LIMIT - 1);
   if (error) throw new Error(error.message);
-  return (data ?? []) as PharmacyRow[];
+  return data ?? [];
 }
 
-export function usePharmacies(query: PharmacyQuery) {
-  const queryKey = ['pharmacies', 'region', query.regionPrefix] as const;
+export function usePharmacies(kind: PlaceKind, query: PharmacyQuery) {
+  const queryKey = placeQueryKeys.region(kind, query.regionPrefix);
 
   const result = useQuery({
     queryKey,
-    queryFn: () => fetchAll(query),
+    queryFn: () => fetchAll(kind, query),
     staleTime: 5 * 60 * 1000,
   });
 
   return {
-    pharmacies: (result.data ?? []).map(toPharmacy),
+    pharmacies: rowsToPlaces(kind, result.data ?? []),
     loading: result.isLoading,
     error: result.error?.message ?? null,
     refetch: result.refetch,

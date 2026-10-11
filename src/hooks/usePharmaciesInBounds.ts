@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import type { PlaceKind } from '../domain/types';
+import { PLACE_SOURCES, placeQueryKeys, rowsToPlaces } from '../lib/placeSources';
 import { supabase } from '../lib/supabaseClient';
-import { toPharmacy, type PharmacyRow } from '../lib/pharmacyRow';
 
 export type MapBounds = {
   swLat: number;
@@ -15,15 +16,13 @@ export type MapBounds = {
 // 재조회하지 않음), 그래야 DB 쿼리 횟수도 사용자가 통제할 수 있다.
 const MAX_BOUNDS_RESULTS = 300;
 
-export function usePharmaciesInBounds(bounds: MapBounds | null) {
+export function usePharmaciesInBounds(kind: PlaceKind, bounds: MapBounds | null) {
   const result = useQuery({
-    queryKey: bounds
-      ? (['pharmacies', 'bounds', bounds.swLat, bounds.swLng, bounds.neLat, bounds.neLng] as const)
-      : (['pharmacies', 'bounds', null] as const),
+    queryKey: placeQueryKeys.bounds(kind, bounds),
     queryFn: async () => {
       if (!bounds) return [];
       const { data, error } = await supabase
-        .from('pharmacies')
+        .from(PLACE_SOURCES[kind].table)
         .select('*')
         .gte('lat', bounds.swLat)
         .lte('lat', bounds.neLat)
@@ -31,14 +30,14 @@ export function usePharmaciesInBounds(bounds: MapBounds | null) {
         .lte('lng', bounds.neLng)
         .limit(MAX_BOUNDS_RESULTS);
       if (error) throw new Error(error.message);
-      return (data ?? []) as PharmacyRow[];
+      return data ?? [];
     },
     enabled: bounds !== null,
     staleTime: 60 * 1000,
   });
 
   return {
-    pharmacies: (result.data ?? []).map(toPharmacy),
+    pharmacies: rowsToPlaces(kind, result.data ?? []),
     loading: result.isLoading,
     error: result.error?.message ?? null,
     refetch: result.refetch,
