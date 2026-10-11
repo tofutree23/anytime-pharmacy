@@ -11,6 +11,7 @@
 - "지금 영업중" / "심야 영업" / "공휴일 영업" 필터
 - 카카오맵 기반 지도 뷰, 목록/지도 동시 표시
 - 약국 상세: 요일별 전체 영업시간표, 전화 연결, 데이터 갱신 시각 표시
+- 홈 상단 `약국 | 동물약국` 탭 전환. 동물약국은 행정안전부 동물약국 인허가 데이터(data.go.kr)에서 영업 중인 곳만 보여줘요. 영업시간은 제공되지 않아 영업시간 필터는 약국 탭에서만 동작하고, 방문 전 전화 확인을 안내해요.
 
 ## 아키텍처
 
@@ -25,10 +26,20 @@ Supabase Edge Function — 공공데이터포털 서비스키(secret) 보관, �
         │
         ▼
 국립중앙의료원 전국 약국 정보 조회 서비스 (data.go.kr)
+
+Supabase Postgres — animal_pharmacies 캐시 테이블 (RLS: 읽기 전용 공개)
+        ▲  upsert
+        │  pg_cron으로 하루 1회(03:30 KST) 트리거
+Supabase Edge Function sync-animal-pharmacies — 서비스키(secret) 보관, 좌표 변환/정규화
+        │
+        ▼
+행정안전부 동물약국 인허가 데이터 (data.go.kr)
 ```
 
 - 클라이언트는 캐시된 데이터만 읽고, 공공데이터포털 서비스키는 Edge Function 밖으로 노출되지 않아요.
 - 공공 API 호출이 실패해도 기존 캐시를 유지해 서비스가 끊기지 않도록 했어요.
+- 동물약국 흐름은 기존 약국 흐름(`pharmacies`, 1시간마다)과 별도로 동작해요. 원본 좌표(EPSG:5174)를 WGS84로 변환해 저장해요.
+- 동물약국 서비스키는 Edge Function secret `DATA_GOV_ANIMAL_KEY`로만 보관해요.
 
 ## 기술 스택
 
@@ -41,7 +52,7 @@ pnpm dev      # 개발 서버
 pnpm build    # 타입체크 + 빌드
 pnpm run deploy # 앱인토스 배포
 pnpm test           # 프론트 도메인 로직 테스트 (Vitest)
-pnpm test:functions # Edge Function 파싱/정규화 테스트 (Deno)
+pnpm test:functions # Edge Function 파싱/정규화/좌표 변환 테스트 (Deno)
 ```
 
 플랫폼 설정은 `apps-in-toss.config.ts`에서 관리해요.
