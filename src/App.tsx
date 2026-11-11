@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { ConfirmDialog } from '@toss/tds-mobile';
 import { HomePage } from './pages/HomePage';
 import type { Place } from './domain/types';
 import { detailFullScreenAd } from './lib/fullScreenAd';
@@ -14,16 +15,27 @@ const AnimalPharmacyDetailPage = lazy(() =>
 
 function App() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  // 광고 안내 다이얼로그를 띄운 채 사용자의 선택을 기다리는 약국.
+  const [adNoticePlace, setAdNoticePlace] = useState<Place | null>(null);
 
   // 첫 상세 진입 때 바로 보여줄 수 있도록 앱 시작 시점에 미리 불러둔다.
   useEffect(() => {
     detailFullScreenAd.preload();
   }, []);
 
-  // 상세 화면을 먼저 띄우고 그 위에 광고를 덮는다. 광고가 없거나 실패해도
-  // 사용자는 기다림 없이 상세 화면을 본다.
+  // 예고 없이 뜨는 광고는 검수 반려 사유라, 광고가 실제로 뜰 때만 안내를 먼저 보여준다.
+  // 광고가 없거나 간격 제한 중이면 안내 없이 바로 상세로 간다.
   const openPlace = (place: Place) => {
-    setSelectedPlace(place);
+    if (detailFullScreenAd.canShow()) setAdNoticePlace(place);
+    else setSelectedPlace(place);
+  };
+
+  // 상세 화면을 먼저 띄우고 그 위에 광고를 덮는다. 광고가 실패해도 사용자는
+  // 기다림 없이 상세 화면을 본다.
+  const confirmAdNotice = () => {
+    if (!adNoticePlace) return;
+    setSelectedPlace(adNoticePlace);
+    setAdNoticePlace(null);
     detailFullScreenAd.showIfReady();
   };
 
@@ -45,6 +57,13 @@ function App() {
           )}
         </Suspense>
       )}
+      <ConfirmDialog
+        open={adNoticePlace !== null}
+        title={<ConfirmDialog.Title>{adNoticePlace?.name} 정보를 보기 전에 광고가 잠깐 나와요</ConfirmDialog.Title>}
+        cancelButton={<ConfirmDialog.CancelButton onClick={() => setAdNoticePlace(null)}>닫기</ConfirmDialog.CancelButton>}
+        confirmButton={<ConfirmDialog.ConfirmButton onClick={confirmAdNotice}>광고 보고 상세 보기</ConfirmDialog.ConfirmButton>}
+        onClose={() => setAdNoticePlace(null)}
+      />
     </>
   );
 }

@@ -64,10 +64,14 @@ export function createFullScreenAdController(
     }
   }
 
+  // 지금 showIfReady를 부르면 광고가 실제로 뜨는지. 광고 전에 안내 UI를 띄울지
+  // 판단하는 데 쓴다(예상하지 못한 시점의 광고 노출은 검수 반려 사유).
+  const canShow = () => enabled() && state === 'ready' && !inCooldown();
+
   // 광고가 준비되지 않았거나 간격 제한 중이면 조용히 건너뛴다. 사용자가 상세 화면을
   // 보는 흐름을 광고 때문에 막지 않는 게 우선이다. 건너뛴 광고는 ready로 남아 다음에 쓴다.
   function showIfReady() {
-    if (!enabled() || state !== 'ready' || inCooldown()) return;
+    if (!canShow()) return;
     state = 'showing';
 
     const finish = (cleanup?: () => void) => {
@@ -95,7 +99,7 @@ export function createFullScreenAdController(
     }
   }
 
-  return { preload, showIfReady };
+  return { preload, canShow, showIfReady };
 }
 
 // 콘솔 지면 '상세 전면 광고'. 광고 그룹 ID는 공개돼도 되는 값이라 env가 없을 때를

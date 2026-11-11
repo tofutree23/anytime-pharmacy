@@ -205,6 +205,58 @@ describe('createFullScreenAdController', () => {
 
       expect(sdk.show).toHaveBeenCalledTimes(2);
     });
+
+    it('canShow는 간격 제한 중이면 false, 지나면 true다', () => {
+      const { ad, advance, loadAndShowOnce, loads } = setup();
+      ad.preload();
+      loadAndShowOnce();
+      loads[1].onEvent({ type: 'loaded' });
+
+      expect(ad.canShow()).toBe(false);
+      advance(60_000);
+      expect(ad.canShow()).toBe(true);
+    });
+  });
+
+  // 검수 반려 대응: 광고 전에 안내 UI를 띄울지 판단하는 데 쓴다. showIfReady가 실제로
+  // 광고를 띄울 조건과 정확히 같아야, 안내만 뜨고 광고는 안 나오는 일이 없다.
+  describe('canShow', () => {
+    it('로드가 끝나기 전에는 false다', () => {
+      const { sdk } = createFakeSdk();
+      const ad = createFullScreenAdController(sdk, AD_GROUP_ID);
+
+      ad.preload();
+
+      expect(ad.canShow()).toBe(false);
+    });
+
+    it('로드가 끝나면 true다', () => {
+      const { sdk, loads } = createFakeSdk();
+      const ad = createFullScreenAdController(sdk, AD_GROUP_ID);
+
+      ad.preload();
+      loads[0].onEvent({ type: 'loaded' });
+
+      expect(ad.canShow()).toBe(true);
+    });
+
+    it('광고를 보여주는 중에는 false다', () => {
+      const { sdk, loads } = createFakeSdk();
+      const ad = createFullScreenAdController(sdk, AD_GROUP_ID);
+
+      ad.preload();
+      loads[0].onEvent({ type: 'loaded' });
+      ad.showIfReady();
+
+      expect(ad.canShow()).toBe(false);
+    });
+
+    it('지원하지 않는 환경에서는 false다', () => {
+      const { sdk } = createFakeSdk(false);
+      const ad = createFullScreenAdController(sdk, AD_GROUP_ID);
+
+      expect(ad.canShow()).toBe(false);
+    });
   });
 
   it('SDK 호출이 예외를 던져도 앱 흐름을 깨지 않는다', () => {
