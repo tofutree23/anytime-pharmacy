@@ -10,8 +10,26 @@ export type FullScreenAdSdk = {
 
 type State = 'idle' | 'loading' | 'ready' | 'showing';
 
-export function createFullScreenAdController(sdk: FullScreenAdSdk, adGroupId: string | undefined) {
+// 약국을 여러 곳 비교하는 동안 상세에 들어갈 때마다 광고가 뜨지 않도록 하는 최소 간격.
+// 늘리면 사용자 경험이 좋아지고 노출은 줄어든다.
+export const DETAIL_AD_COOLDOWN_MS = 60_000;
+
+type ControllerOptions = {
+  cooldownMs?: number;
+  now?: () => number;
+};
+
+export function createFullScreenAdController(
+  sdk: FullScreenAdSdk,
+  adGroupId: string | undefined,
+  { cooldownMs = DETAIL_AD_COOLDOWN_MS, now = Date.now }: ControllerOptions = {},
+) {
   let state: State = 'idle';
+  // 광고가 실제로 화면에 뜬 시각. 표시에 실패한 시도는 기록하지 않아서, 실패 직후에도
+  // 다음 상세 진입에서 바로 다시 노출을 시도할 수 있다.
+  let lastShownAt: number | null = null;
+
+  const inCooldown = () => lastShownAt !== null && now() - lastShownAt < cooldownMs;
 
   const enabled = () => {
     if (!adGroupId) return false;
@@ -46,10 +64,10 @@ export function createFullScreenAdController(sdk: FullScreenAdSdk, adGroupId: st
     }
   }
 
-  // 광고가 준비되지 않았으면 조용히 건너뛴다. 사용자가 상세 화면을 보는 흐름을
-  // 광고 로딩 때문에 막지 않는 게 우선이다.
+  // 광고가 준비되지 않았거나 간격 제한 중이면 조용히 건너뛴다. 사용자가 상세 화면을
+  // 보는 흐름을 광고 때문에 막지 않는 게 우선이다. 건너뛴 광고는 ready로 남아 다음에 쓴다.
   function showIfReady() {
-    if (!enabled() || state !== 'ready') return;
+    if (!enabled() || state !== 'ready' || inCooldown()) return;
     state = 'showing';
 
     const finish = (cleanup?: () => void) => {
@@ -63,6 +81,7 @@ export function createFullScreenAdController(sdk: FullScreenAdSdk, adGroupId: st
       const cleanup = sdk.show({
         options: { adGroupId: adGroupId! },
         onEvent: (event) => {
+          if (event.type === 'show') lastShownAt = now();
           if (event.type === 'dismissed' || event.type === 'failedToShow') finish(cleanup);
         },
         onError: (error) => {
