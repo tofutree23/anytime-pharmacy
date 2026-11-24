@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # main 배포는 중간에 끊지 않는다. PR 검사는 새 push가 오면 이전 실행을 취소한다.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_TOSS_AD_GROUP_ID: ${{ secrets.VITE_TOSS_AD_GROUP_ID }}
+      VITE_KAKAO_MAP_APP_KEY: ${{ secrets.VITE_KAKAO_MAP_APP_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Apps in Toss deploy
+        if: github.event_name == 'push'
+        env:
+          AIT_API_KEY: ${{ secrets.AIT_API_KEY }}
+          MEMO: ${{ github.event.head_commit.message }}
+        run: pnpm exec ait deploy --api-key "$AIT_API_KEY" --memo "${MEMO:0:1000}"
